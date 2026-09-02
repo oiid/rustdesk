@@ -541,6 +541,16 @@ class _GeneralState extends State<_General> {
               isServer: false,
             ),
           ),
+        if (isWindows)
+          _OptionCheckBox(
+            context,
+            'Hide window from screen capture',
+            kOptionHideFromScreenCapture,
+            optGetter: () => isHideFromCaptureOn(),
+            optSetter: (k, v) async =>
+                await bind.mainSetLocalOption(key: k, value: v ? 'Y' : 'N'),
+            update: (bool v) => setWindowExcludeFromCapture(v),
+          ),
       ],
       if (!isWeb && !bind.isCustomClient())
         _OptionCheckBox(

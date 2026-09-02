@@ -412,7 +412,9 @@ WindowOptions getHiddenTitleBarWindowOptions(
     size: size,
     center: center,
     backgroundColor: (isMacOS && isMainWindow) ? null : Colors.transparent,
-    skipTaskbar: false,
+    // Custom build: keep every window (main + remote sessions) out of the
+    // taskbar and Alt+Tab.
+    skipTaskbar: !isWeb && isWindows ? true : false,
     titleBarStyle: defaultTitleBarStyle,
     alwaysOnTop: alwaysOnTop,
   );

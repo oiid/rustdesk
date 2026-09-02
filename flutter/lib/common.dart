@@ -2907,6 +2907,21 @@ int getWindowsTargetBuildNumber() {
   return getWindowsTargetBuildNumber_();
 }
 
+/// Hide (or restore) all windows of the current process from screen capture
+/// using `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`. Windows only;
+/// no-op on other platforms. The window stays visible on the physical
+/// monitor but is excluded from screen capture / screen sharing tools.
+void setWindowExcludeFromCapture(bool enable) {
+  setWindowExcludeFromCapture_(enable);
+}
+
+/// Whether "hide window from screen capture" is enabled. Defaults to ON —
+/// only an explicit "N" turns it off. Windows only.
+bool isHideFromCaptureOn() {
+  if (!isWindows) return false;
+  return bind.mainGetLocalOption(key: kOptionHideFromScreenCapture) != 'N';
+}
+
 /// Indicating we need to use compatible ui mode.
 ///
 /// [Conditions]

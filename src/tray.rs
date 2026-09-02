@@ -9,7 +9,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub fn start_tray() {
-    if crate::ui_interface::get_builtin_option(hbb_common::config::keys::OPTION_HIDE_TRAY) == "Y" {
+    // Custom build: never create a tray icon on Windows (treat it like hide-tray).
+    if cfg!(windows)
+        || crate::ui_interface::get_builtin_option(hbb_common::config::keys::OPTION_HIDE_TRAY) == "Y"
+    {
         #[cfg(not(target_os = "macos"))]
         {
             return;

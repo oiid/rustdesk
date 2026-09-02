@@ -147,6 +147,14 @@ class _RemotePageState extends State<RemotePage>
   @override
   void initState() {
     super.initState();
+    if (isWindows) {
+      // Hide this remote session window (showing the VPS screen) from screen
+      // capture. ON by default. Applied after the first frame so the native
+      // window exists.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setWindowExcludeFromCapture(isHideFromCaptureOn());
+      });
+    }
     _ffi = FFI(widget.sessionId);
     if (isMacOS) {
       // SchedulerBinding.instance.lifecycleState is null in the first connection in a new window.
