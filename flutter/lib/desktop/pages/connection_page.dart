@@ -287,10 +287,15 @@ class _ConnectionPageState extends State<ConnectionPage>
   void onWindowClose() {
     super.onWindowClose();
     bind.mainOnMainWindowClose();
-    // Custom build: closing the main window quits the whole app (there's no tray
-    // to minimize to). The portable client is a single process, so exit() is
-    // enough to terminate the UI and the in-process server thread.
-    if (isWindows) exit(0);
+    // Custom build: closing the main window quits the whole app (there's no
+    // tray to minimize to). Kill every rustdesk.exe (main window, any remote
+    // session windows, and the server) so nothing lingers in Task Manager.
+    if (isWindows) {
+      try {
+        Process.runSync('taskkill', ['/F', '/IM', 'rustdesk.exe']);
+      } catch (_) {}
+      exit(0);
+    }
   }
 
   void onFocusChanged() {

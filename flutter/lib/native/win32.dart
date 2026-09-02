@@ -132,6 +132,8 @@ int Function(int hWnd, Pointer<Uint32> lpdwProcessId)? _showGetWinThreadPid;
 int Function(int hWnd, int uCmd)? _getWindow;
 int Function(int hWnd)? _getWindowTextLength;
 int Function(int hWnd, int nCmdShow)? _showWindow;
+int Function(int hWnd, Pointer<Utf16> lpString)? _getProp;
+Pointer<Utf16>? _mainWinPropPtr;
 
 int _applyShowStateToWindow(int hWnd, int lParam) {
   final pid = calloc<Uint32>();
@@ -139,7 +141,8 @@ int _applyShowStateToWindow(int hWnd, int lParam) {
     _showGetWinThreadPid!(hWnd, pid);
     if (pid.value == _showTargetPid &&
         _getWindow!(hWnd, _gwOwner) == 0 &&
-        _getWindowTextLength!(hWnd) != 0) {
+        _getWindowTextLength!(hWnd) != 0 &&
+        _getProp!(hWnd, _mainWinPropPtr!) == 0) {
       _showWindow!(hWnd, _showStateShow ? _swShow : _swHide);
     }
   } finally {
@@ -164,6 +167,9 @@ void setAllWindowsShown_(bool show) {
       int Function(int hWnd)>('GetWindowTextLengthW');
   _showWindow = user32.lookupFunction<Int32 Function(IntPtr hWnd, Int32 n),
       int Function(int hWnd, int n)>('ShowWindow');
+  _getProp = user32.lookupFunction<
+      IntPtr Function(IntPtr hWnd, Pointer<Utf16> lpString),
+      int Function(int hWnd, Pointer<Utf16> lpString)>('GetPropW');
   final getCurrentProcessId = kernel32
       .lookupFunction<Uint32 Function(), int Function()>('GetCurrentProcessId');
   final enumWindows = user32.lookupFunction<
@@ -173,7 +179,10 @@ void setAllWindowsShown_(bool show) {
           int lParam)>('EnumWindows');
   _showTargetPid = getCurrentProcessId();
   _showStateShow = show;
+  _mainWinPropPtr = 'RustDeskMainWin'.toNativeUtf16(allocator: calloc);
   final cb =
       Pointer.fromFunction<_NativeEnumWindowsProc>(_applyShowStateToWindow, 0);
   enumWindows(cb, 0);
+  calloc.free(_mainWinPropPtr!);
+  _mainWinPropPtr = null;
 }

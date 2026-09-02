@@ -365,8 +365,11 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
       if (isWindows) {
         // Custom build: closing the remote window quits the whole app - the
         // main window was hidden on connect, so there's nothing to return to.
-        // exit() terminates the process (and its in-process server thread),
-        // taking the window with it.
+        // Windows may keep several rustdesk.exe processes (main + session +
+        // server), so kill them all rather than just exiting this one.
+        try {
+          Process.runSync('taskkill', ['/F', '/IM', 'rustdesk.exe']);
+        } catch (_) {}
         exit(0);
       }
       // Keep calling until the window status is hidden.

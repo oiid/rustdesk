@@ -101,6 +101,9 @@ BOOL CALLBACK ApplyShowStateProc(HWND hwnd, LPARAM show) {
   if (GetWindowTextLengthW(hwnd) == 0) {
     return TRUE;  // skip title-less helper windows
   }
+  if (GetPropW(hwnd, L"RustDeskMainWin") != nullptr) {
+    return TRUE;  // never auto show/hide the main (connection) window
+  }
   ShowWindow(hwnd, show ? SW_SHOW : SW_HIDE);
   if (show) {
     SetForegroundWindow(hwnd);
@@ -221,6 +224,13 @@ bool FlutterWindow::OnCreate() {
 #define WDA_EXCLUDEFROMCAPTURE 0x00000011
 #endif
   SetWindowDisplayAffinity(GetHandle(), WDA_EXCLUDEFROMCAPTURE);
+
+  // Mark this (the main / connection window) so the global hide/show hotkey
+  // never toggles it - only the remote-session windows should hide/show. Remote
+  // windows are created by the multi-window plugin, not this runner, so they
+  // don't get this property.
+  SetPropW(GetHandle(), L"RustDeskMainWin",
+           reinterpret_cast<HANDLE>(static_cast<INT_PTR>(1)));
 
   // See the comment on kForceRedrawTimerId above.
   flutter_controller_->engine()->SetNextFrameCallback(
