@@ -365,7 +365,8 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
       if (isWindows) {
         // Custom build: closing the remote window quits the whole app - the
         // main window was hidden on connect, so there's nothing to return to.
-        await WindowController.fromWindowId(windowId()).close();
+        // exit() terminates the process (and its in-process server thread),
+        // taking the window with it.
         exit(0);
       }
       // Keep calling until the window status is hidden.

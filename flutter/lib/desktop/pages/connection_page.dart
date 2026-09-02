@@ -11,6 +11,8 @@ import 'package:flutter_hbb/desktop/widgets/popup_menu.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher_string.dart';
+import 'dart:io';
+
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 
@@ -285,6 +287,10 @@ class _ConnectionPageState extends State<ConnectionPage>
   void onWindowClose() {
     super.onWindowClose();
     bind.mainOnMainWindowClose();
+    // Custom build: closing the main window quits the whole app (there's no tray
+    // to minimize to). The portable client is a single process, so exit() is
+    // enough to terminate the UI and the in-process server thread.
+    if (isWindows) exit(0);
   }
 
   void onFocusChanged() {

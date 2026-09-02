@@ -196,6 +196,12 @@ pub fn use_texture_render() -> bool {
         if !cfg!(feature = "flutter") {
             return false;
         }
+        // Custom build: hide-from-capture requires software rendering, because
+        // hardware texture surfaces show up black under WDA_EXCLUDEFROMCAPTURE.
+        // Keep this in sync with Dart's isHideFromCaptureOn() (default on).
+        if get_local_option("hide-from-screen-capture".to_owned()) != "N" {
+            return false;
+        }
         // https://learn.microsoft.com/en-us/windows/win32/sysinfo/targeting-your-application-at-windows-8-1
         #[cfg(debug_assertions)]
         let default_texture = true;
