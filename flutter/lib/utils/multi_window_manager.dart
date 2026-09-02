@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:flutter_hbb/main.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 
@@ -176,6 +177,13 @@ class RustDeskMultiWindowManager {
     }
     registerActiveWindow(windowId);
     windows.add(windowId);
+    if (isWindows) {
+      // Custom build: once a session window opens, hide the main (connection)
+      // window so only the remote window shows. Closing the remote window quits
+      // the whole app (see remote_tab_page.onRemoveId).
+      Future.delayed(
+          const Duration(milliseconds: 500), () => windowManager.hide());
+    }
     return windowId;
   }
 

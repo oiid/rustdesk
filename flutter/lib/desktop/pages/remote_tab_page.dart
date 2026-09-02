@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'dart:io';
+
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
@@ -360,6 +362,12 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
 
   void onRemoveId(String id) async {
     if (tabController.state.value.tabs.isEmpty) {
+      if (isWindows) {
+        // Custom build: closing the remote window quits the whole app - the
+        // main window was hidden on connect, so there's nothing to return to.
+        await WindowController.fromWindowId(windowId()).close();
+        exit(0);
+      }
       // Keep calling until the window status is hidden.
       //
       // Workaround for Windows:

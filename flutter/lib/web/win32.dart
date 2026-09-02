@@ -6,3 +6,6 @@ int getWindowsTargetBuildNumber_() {
 
 /// No use, for compilation only.
 void setWindowExcludeFromCapture_(bool enable) {}
+
+/// No use, for compilation only.
+void setAllWindowsShown_(bool show) {}

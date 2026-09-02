@@ -2033,14 +2033,18 @@ class ImageModel with ChangeNotifier {
 
   updateUserTextureRender() {
     final preValue = _useTextureRender;
-    _useTextureRender = isDesktop && bind.mainGetUseTextureRender();
+    // Hardware/texture rendering leaves a black hole under screen-capture
+    // exclusion, so force the RGBA (software) path while hide-from-capture is on
+    // - that composites through Flutter and is excluded cleanly (transparent).
+    _useTextureRender =
+        isDesktop && bind.mainGetUseTextureRender() && !isHideFromCaptureOn();
     if (preValue != _useTextureRender) {
       notifyListeners();
     }
   }
 
   setUseTextureRender(bool value) {
-    _useTextureRender = value;
+    _useTextureRender = value && !isHideFromCaptureOn();
     notifyListeners();
   }
 

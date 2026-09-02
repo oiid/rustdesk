@@ -2980,6 +2980,47 @@ Future<void> applyHotkeys() async {
       .setShowHotkey(modifiers: show[0], keyCode: show[1]);
 }
 
+/// Show or hide every window of this process (Windows only). Used by the
+/// in-session hotkey so hide/show works even while the remote view has focus.
+void setAllWindowsShown(bool show) {
+  setAllWindowsShown_(show);
+}
+
+// Win32 virtual-key for a Flutter key label, limited to the keys the hotkey
+// selector offers (A-Z, 0-9, F1-F12). Returns 0 if unsupported.
+int _labelToVk(String label) {
+  if (label.length == 1) {
+    final c = label.toUpperCase().codeUnitAt(0);
+    if (c >= 0x41 && c <= 0x5A) return c; // A-Z
+    if (c >= 0x30 && c <= 0x39) return c; // 0-9
+  }
+  if (label.length >= 2 && (label[0] == 'F' || label[0] == 'f')) {
+    final n = int.tryParse(label.substring(1));
+    if (n != null && n >= 1 && n <= 12) return 0x6F + n; // F1-F12
+  }
+  return 0;
+}
+
+/// If [mods] (Win32 modifier flags) + [keyLabel] matches the hide or show
+/// hotkey, perform it and return true so the caller consumes the key event
+/// (instead of forwarding it to the remote). Windows only.
+bool maybeHandleHideShowHotkey(int mods, String keyLabel) {
+  if (!isWindows) return false;
+  final vk = _labelToVk(keyLabel);
+  if (vk == 0) return false;
+  final hide = getHideHotkey();
+  final show = getShowHotkey();
+  if (mods == hide[0] && vk == hide[1]) {
+    setAllWindowsShown(false);
+    return true;
+  }
+  if (mods == show[0] && vk == show[1]) {
+    setAllWindowsShown(true);
+    return true;
+  }
+  return false;
+}
+
 /// Indicating we need to use compatible ui mode.
 ///
 /// [Conditions]

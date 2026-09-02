@@ -116,3 +116,64 @@ void setWindowExcludeFromCapture_(bool enable) {
       Pointer.fromFunction<_NativeEnumWindowsProc>(_applyAffinityToWindow, 0);
   enumWindows(callback, 0);
 }
+
+// ===== Show / hide all app windows (used by the in-session hotkey) =====
+// Mirrors the native SetAllProcessWindowsShown in the runner, but callable from
+// any isolate (including a remote-session sub-window) so the hide/show hotkey
+// works even while the remote view has keyboard focus.
+
+const int _swHide = 0;
+const int _swShow = 5;
+const int _gwOwner = 4;
+
+int _showTargetPid = 0;
+bool _showStateShow = false;
+int Function(int hWnd, Pointer<Uint32> lpdwProcessId)? _showGetWinThreadPid;
+int Function(int hWnd, int uCmd)? _getWindow;
+int Function(int hWnd)? _getWindowTextLength;
+int Function(int hWnd, int nCmdShow)? _showWindow;
+
+int _applyShowStateToWindow(int hWnd, int lParam) {
+  final pid = calloc<Uint32>();
+  try {
+    _showGetWinThreadPid!(hWnd, pid);
+    if (pid.value == _showTargetPid &&
+        _getWindow!(hWnd, _gwOwner) == 0 &&
+        _getWindowTextLength!(hWnd) != 0) {
+      _showWindow!(hWnd, _showStateShow ? _swShow : _swHide);
+    }
+  } finally {
+    calloc.free(pid);
+  }
+  return 1;
+}
+
+/// Show or hide every top-level app window of this process. Safe no-op off
+/// Windows. Call wrapped with `Platform.isWindows`.
+void setAllWindowsShown_(bool show) {
+  if (!Platform.isWindows) return;
+  final user32 = DynamicLibrary.open('user32.dll');
+  final kernel32 = DynamicLibrary.open('kernel32.dll');
+  _showGetWinThreadPid = user32.lookupFunction<
+      Uint32 Function(IntPtr hWnd, Pointer<Uint32> lpdwProcessId),
+      int Function(int hWnd, Pointer<Uint32> lpdwProcessId)>(
+      'GetWindowThreadProcessId');
+  _getWindow = user32.lookupFunction<IntPtr Function(IntPtr hWnd, Uint32 uCmd),
+      int Function(int hWnd, int uCmd)>('GetWindow');
+  _getWindowTextLength = user32.lookupFunction<Int32 Function(IntPtr hWnd),
+      int Function(int hWnd)>('GetWindowTextLengthW');
+  _showWindow = user32.lookupFunction<Int32 Function(IntPtr hWnd, Int32 n),
+      int Function(int hWnd, int n)>('ShowWindow');
+  final getCurrentProcessId = kernel32
+      .lookupFunction<Uint32 Function(), int Function()>('GetCurrentProcessId');
+  final enumWindows = user32.lookupFunction<
+      Int32 Function(Pointer<NativeFunction<_NativeEnumWindowsProc>> lpEnumFunc,
+          IntPtr lParam),
+      int Function(Pointer<NativeFunction<_NativeEnumWindowsProc>> lpEnumFunc,
+          int lParam)>('EnumWindows');
+  _showTargetPid = getCurrentProcessId();
+  _showStateShow = show;
+  final cb =
+      Pointer.fromFunction<_NativeEnumWindowsProc>(_applyShowStateToWindow, 0);
+  enumWindows(cb, 0);
+}

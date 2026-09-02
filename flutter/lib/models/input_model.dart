@@ -738,6 +738,17 @@ class InputModel {
   KeyEventResult handleRawKeyEvent(RawKeyEvent e) {
     if (isViewOnly) return KeyEventResult.handled;
     if (isViewCamera) return KeyEventResult.handled;
+    // Intercept the hide/show hotkey so it toggles the app instead of being
+    // forwarded to the remote, even while the remote view has keyboard focus.
+    if (e is RawKeyDownEvent && !e.repeat) {
+      final mods = (e.isControlPressed ? kModControl : 0) |
+          (e.isAltPressed ? kModAlt : 0) |
+          (e.isShiftPressed ? kModShift : 0) |
+          (e.isMetaPressed ? kModWin : 0);
+      if (maybeHandleHideShowHotkey(mods, e.logicalKey.keyLabel)) {
+        return KeyEventResult.handled;
+      }
+    }
     if (!isInputSourceFlutter) {
       if (isDesktop) {
         return KeyEventResult.handled;
@@ -823,6 +834,18 @@ class InputModel {
   KeyEventResult handleKeyEvent(KeyEvent e) {
     if (isViewOnly) return KeyEventResult.handled;
     if (isViewCamera) return KeyEventResult.handled;
+    // Intercept the hide/show hotkey so it toggles the app instead of being
+    // forwarded to the remote, even while the remote view has keyboard focus.
+    if (e is KeyDownEvent) {
+      final hw = HardwareKeyboard.instance;
+      final mods = (hw.isControlPressed ? kModControl : 0) |
+          (hw.isAltPressed ? kModAlt : 0) |
+          (hw.isShiftPressed ? kModShift : 0) |
+          (hw.isMetaPressed ? kModWin : 0);
+      if (maybeHandleHideShowHotkey(mods, e.logicalKey.keyLabel)) {
+        return KeyEventResult.handled;
+      }
+    }
     if (!isInputSourceFlutter) {
       if (isDesktop) {
         return KeyEventResult.handled;
