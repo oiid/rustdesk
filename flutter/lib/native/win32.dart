@@ -75,7 +75,7 @@ int _applyAffinityToWindow(int hWnd, int lParam) {
   final pid = calloc<Uint32>();
   try {
     _getWindowThreadProcessId!(hWnd, pid);
-    if (pid.value == _excludeTargetPid && _isWindowVisible!(hWnd) != 0) {
+    if (pid.value == _excludeTargetPid) {
       _setWindowDisplayAffinity!(hWnd, _excludeAffinity);
     }
   } finally {

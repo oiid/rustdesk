@@ -227,6 +227,15 @@ bool FlutterWindow::OnCreate() {
   });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  // Hide this window from screen capture by default, applied here (before the
+  // window is ever shown) so it can't be missed by startup-timing races. The
+  // Dart side reconciles this to the saved option after startup and drives the
+  // Settings toggle.
+#ifndef WDA_EXCLUDEFROMCAPTURE
+#define WDA_EXCLUDEFROMCAPTURE 0x00000011
+#endif
+  SetWindowDisplayAffinity(GetHandle(), WDA_EXCLUDEFROMCAPTURE);
+
   // See the comment on kForceRedrawTimerId above.
   flutter_controller_->engine()->SetNextFrameCallback(
       [this]() { first_frame_rendered_ = true; });

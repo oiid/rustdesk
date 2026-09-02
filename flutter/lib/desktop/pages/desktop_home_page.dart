@@ -700,6 +700,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         setWindowExcludeFromCapture(isHideFromCaptureOn());
         applyHideShowHotkey();
       });
+      // Re-apply after the window's show/opacity sequence settles, so the main
+      // window is covered even if it wasn't fully shown at the first frame.
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) setWindowExcludeFromCapture(isHideFromCaptureOn());
+      });
     }
     _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {
       await gFFI.serverModel.fetchID();
