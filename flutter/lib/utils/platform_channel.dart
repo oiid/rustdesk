@@ -26,12 +26,20 @@ class RdPlatformChannel {
     return result ?? false;
   }
 
-  /// Register (or re-register) the global show/hide hotkey. Windows only.
+  /// Register (or re-register) the global "hide window(s)" hotkey. Windows only.
   /// [keyCode] of 0 clears it. Returns whether registration succeeded.
-  Future<bool> setHideShowHotkey(
+  Future<bool> setHideHotkey(
       {required int modifiers, required int keyCode}) async {
     bool? result = await _hostMethodChannel.invokeMethod(
-        "setHideShowHotkey", {"modifiers": modifiers, "keyCode": keyCode});
+        "setHideHotkey", {"modifiers": modifiers, "keyCode": keyCode});
+    return result ?? false;
+  }
+
+  /// Register (or re-register) the global "show window(s)" hotkey. Windows only.
+  Future<bool> setShowHotkey(
+      {required int modifiers, required int keyCode}) async {
+    bool? result = await _hostMethodChannel.invokeMethod(
+        "setShowHotkey", {"modifiers": modifiers, "keyCode": keyCode});
     return result ?? false;
   }
 

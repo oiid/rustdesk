@@ -698,7 +698,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     if (isWindows) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         setWindowExcludeFromCapture(isHideFromCaptureOn());
-        applyHideShowHotkey();
+        applyHotkeys();
       });
       // Re-apply after the window's show/opacity sequence settles, so the main
       // window is covered even if it wasn't fully shown at the first frame.

@@ -82,11 +82,14 @@ void ForceChildRefresh(HWND child) {
 // A single global hotkey (configured from the Dart settings page) toggles the
 // visibility of every top-level window of this process, so the whole app can be
 // summoned / dismissed instantly.
-constexpr int kHideShowHotkeyId = 0xB0B0;
-bool g_windows_hidden = false;
-std::vector<HWND> g_hidden_windows;
+// Two independent hotkeys: one hides all app windows, one shows them.
+constexpr int kHideHotkeyId = 0xB0B1;
+constexpr int kShowHotkeyId = 0xB0B2;
 
-BOOL CALLBACK CollectAppWindow(HWND hwnd, LPARAM lparam) {
+// Show (lparam != 0) or hide (lparam == 0) every top-level app window of this
+// process. EnumWindows also enumerates hidden windows, so "show" can un-hide
+// windows previously hidden by the hide hotkey.
+BOOL CALLBACK ApplyShowStateProc(HWND hwnd, LPARAM show) {
   DWORD pid = 0;
   GetWindowThreadProcessId(hwnd, &pid);
   if (pid != GetCurrentProcessId()) {
@@ -98,32 +101,15 @@ BOOL CALLBACK CollectAppWindow(HWND hwnd, LPARAM lparam) {
   if (GetWindowTextLengthW(hwnd) == 0) {
     return TRUE;  // skip title-less helper windows
   }
-  reinterpret_cast<std::vector<HWND>*>(lparam)->push_back(hwnd);
+  ShowWindow(hwnd, show ? SW_SHOW : SW_HIDE);
+  if (show) {
+    SetForegroundWindow(hwnd);
+  }
   return TRUE;
 }
 
-void ToggleAllProcessWindows() {
-  if (!g_windows_hidden) {
-    std::vector<HWND> wins;
-    EnumWindows(CollectAppWindow, reinterpret_cast<LPARAM>(&wins));
-    g_hidden_windows.clear();
-    for (HWND h : wins) {
-      if (IsWindowVisible(h)) {
-        ShowWindow(h, SW_HIDE);
-        g_hidden_windows.push_back(h);
-      }
-    }
-    g_windows_hidden = true;
-  } else {
-    for (HWND h : g_hidden_windows) {
-      ShowWindow(h, SW_SHOW);
-    }
-    if (!g_hidden_windows.empty()) {
-      SetForegroundWindow(g_hidden_windows.back());
-    }
-    g_hidden_windows.clear();
-    g_windows_hidden = false;
-  }
+void SetAllProcessWindowsShown(bool show) {
+  EnumWindows(ApplyShowStateProc, show ? TRUE : FALSE);
 }
 
 }  // namespace
@@ -188,7 +174,8 @@ bool FlutterWindow::OnCreate() {
         bool succeeded = Win32Desktop::BumpMouse(dx, dy);
 
         result->Success(succeeded);
-      } else if (call.method_name() == "setHideShowHotkey") {
+      } else if (call.method_name() == "setHideHotkey" ||
+                 call.method_name() == "setShowHotkey") {
         int mods = 0, vk = 0;
         auto arguments = call.arguments();
         if (std::holds_alternative<flutter::EncodableMap>(*arguments)) {
@@ -202,17 +189,16 @@ bool FlutterWindow::OnCreate() {
             vk = std::get<int>(kIt->second);
           }
         }
-        UnregisterHotKey(this->GetHandle(), kHideShowHotkeyId);
+        int id = (call.method_name() == "setHideHotkey") ? kHideHotkeyId
+                                                         : kShowHotkeyId;
+        UnregisterHotKey(this->GetHandle(), id);
         bool ok = true;
         if (vk != 0) {
-          ok = RegisterHotKey(this->GetHandle(), kHideShowHotkeyId,
+          ok = RegisterHotKey(this->GetHandle(), id,
                               static_cast<UINT>(mods) | MOD_NOREPEAT,
                               static_cast<UINT>(vk)) != 0;
         }
         result->Success(flutter::EncodableValue(ok));
-      } else if (call.method_name() == "clearHideShowHotkey") {
-        UnregisterHotKey(this->GetHandle(), kHideShowHotkeyId);
-        result->Success();
       }
     });
 
@@ -269,8 +255,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
 
   switch (message) {
     case WM_HOTKEY:
-      if (static_cast<int>(wparam) == kHideShowHotkeyId) {
-        ToggleAllProcessWindows();
+      if (static_cast<int>(wparam) == kHideHotkeyId) {
+        SetAllProcessWindowsShown(false);
+        return 0;
+      }
+      if (static_cast<int>(wparam) == kShowHotkeyId) {
+        SetAllProcessWindowsShown(true);
         return 0;
       }
       break;

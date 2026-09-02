@@ -2928,11 +2928,9 @@ const int kModControl = 0x2;
 const int kModShift = 0x4;
 const int kModWin = 0x8;
 
-/// The stored show/hide hotkey as [modifiers, keyCode] (Win32 values).
-/// Defaults to Ctrl+Alt+H.
-List<int> getHideShowHotkey() {
-  final def = [kModControl | kModAlt, 0x48]; // Ctrl+Alt+H
-  final raw = bind.mainGetLocalOption(key: kOptionHideShowHotkey);
+/// A stored hotkey as [modifiers, keyCode] (Win32 values), or [def] when unset.
+List<int> _getHotkey(String key, List<int> def) {
+  final raw = bind.mainGetLocalOption(key: key);
   if (raw.isEmpty) return def;
   final parts = raw.split(',');
   if (parts.length != 2) return def;
@@ -2942,23 +2940,44 @@ List<int> getHideShowHotkey() {
   return [mods, vk];
 }
 
-/// Persist and (on Windows) register the show/hide hotkey immediately.
-Future<void> updateHideShowHotkey(int modifiers, int keyCode) async {
+/// The "hide window(s)" hotkey. Defaults to Ctrl+Alt+H.
+List<int> getHideHotkey() =>
+    _getHotkey(kOptionHideHotkey, [kModControl | kModAlt, 0x48]);
+
+/// The "show window(s)" hotkey. Defaults to Ctrl+Alt+S.
+List<int> getShowHotkey() =>
+    _getHotkey(kOptionShowHotkey, [kModControl | kModAlt, 0x53]);
+
+/// Persist and (on Windows) register the hide hotkey immediately.
+Future<void> updateHideHotkey(int modifiers, int keyCode) async {
   await bind.mainSetLocalOption(
-      key: kOptionHideShowHotkey, value: '$modifiers,$keyCode');
+      key: kOptionHideHotkey, value: '$modifiers,$keyCode');
   if (isWindows) {
     await RdPlatformChannel.instance
-        .setHideShowHotkey(modifiers: modifiers, keyCode: keyCode);
+        .setHideHotkey(modifiers: modifiers, keyCode: keyCode);
   }
 }
 
-/// Register the stored show/hide hotkey with the native runner (call at
-/// startup from the main window).
-Future<void> applyHideShowHotkey() async {
+/// Persist and (on Windows) register the show hotkey immediately.
+Future<void> updateShowHotkey(int modifiers, int keyCode) async {
+  await bind.mainSetLocalOption(
+      key: kOptionShowHotkey, value: '$modifiers,$keyCode');
+  if (isWindows) {
+    await RdPlatformChannel.instance
+        .setShowHotkey(modifiers: modifiers, keyCode: keyCode);
+  }
+}
+
+/// Register both stored hotkeys with the native runner (call at startup from
+/// the main window).
+Future<void> applyHotkeys() async {
   if (!isWindows) return;
-  final hk = getHideShowHotkey();
+  final hide = getHideHotkey();
+  final show = getShowHotkey();
   await RdPlatformChannel.instance
-      .setHideShowHotkey(modifiers: hk[0], keyCode: hk[1]);
+      .setHideHotkey(modifiers: hide[0], keyCode: hide[1]);
+  await RdPlatformChannel.instance
+      .setShowHotkey(modifiers: show[0], keyCode: show[1]);
 }
 
 /// Indicating we need to use compatible ui mode.

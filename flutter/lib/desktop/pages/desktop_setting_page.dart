@@ -551,7 +551,18 @@ class _GeneralState extends State<_General> {
                 await bind.mainSetLocalOption(key: k, value: v ? 'Y' : 'N'),
             update: (bool v) => setWindowExcludeFromCapture(v),
           ),
-        if (isWindows) const _HideShowHotkeyConfig(),
+        if (isWindows)
+          _HotkeyConfig(
+            label: 'Hide window hotkey',
+            get: getHideHotkey,
+            set: updateHideHotkey,
+          ),
+        if (isWindows)
+          _HotkeyConfig(
+            label: 'Show window hotkey',
+            get: getShowHotkey,
+            set: updateShowHotkey,
+          ),
       ],
       if (!isWeb && !bind.isCustomClient())
         _OptionCheckBox(
@@ -2664,27 +2675,31 @@ Widget _Radio<T>(BuildContext context,
   );
 }
 
-// Configure the global hotkey that hides/shows all app windows.
-class _HideShowHotkeyConfig extends StatefulWidget {
-  const _HideShowHotkeyConfig();
+// Configure one global hotkey (modifiers + key).
+class _HotkeyConfig extends StatefulWidget {
+  final String label;
+  final List<int> Function() get;
+  final Future<void> Function(int modifiers, int keyCode) set;
+  const _HotkeyConfig(
+      {required this.label, required this.get, required this.set});
 
   @override
-  State<_HideShowHotkeyConfig> createState() => _HideShowHotkeyConfigState();
+  State<_HotkeyConfig> createState() => _HotkeyConfigState();
 }
 
-class _HideShowHotkeyConfigState extends State<_HideShowHotkeyConfig> {
+class _HotkeyConfigState extends State<_HotkeyConfig> {
   late int _mods;
   late int _vk;
 
   @override
   void initState() {
     super.initState();
-    final hk = getHideShowHotkey();
+    final hk = widget.get();
     _mods = hk[0];
     _vk = hk[1];
   }
 
-  void _apply() => updateHideShowHotkey(_mods, _vk);
+  void _apply() => widget.set(_mods, _vk);
 
   Widget _mod(String label, int flag) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
@@ -2727,7 +2742,7 @@ class _HideShowHotkeyConfigState extends State<_HideShowHotkeyConfig> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(translate('Show/Hide window hotkey')),
+        Text(translate(widget.label)),
         const SizedBox(height: 6),
         Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
