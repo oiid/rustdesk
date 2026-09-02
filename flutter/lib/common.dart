@@ -2922,6 +2922,16 @@ bool isHideFromCaptureOn() {
   return bind.mainGetLocalOption(key: kOptionHideFromScreenCapture) != 'N';
 }
 
+/// Apply the hide-from-capture state: set the display affinity now, and tell the
+/// native runner so it re-applies the affinity whenever it re-shows a window
+/// (re-showing a hidden window can drop the affinity -> black in captures).
+Future<void> applyHideFromCapture(bool enable) async {
+  setWindowExcludeFromCapture(enable);
+  if (isWindows) {
+    await RdPlatformChannel.instance.setHideFromCapture(enable);
+  }
+}
+
 // Win32 global-hotkey modifier flags (see RegisterHotKey).
 const int kModAlt = 0x1;
 const int kModControl = 0x2;

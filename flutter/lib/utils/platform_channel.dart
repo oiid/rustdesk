@@ -43,6 +43,12 @@ class RdPlatformChannel {
     return result ?? false;
   }
 
+  /// Tell the native runner whether hide-from-capture is enabled, so it can
+  /// re-apply capture exclusion whenever it re-shows a window. Windows only.
+  Future<void> setHideFromCapture(bool enable) {
+    return _hostMethodChannel.invokeMethod("setHideFromCapture", enable);
+  }
+
   /// Change the theme of the system window
   Future<void> changeSystemWindowTheme(SystemWindowTheme theme) {
     assert(isMacOS);

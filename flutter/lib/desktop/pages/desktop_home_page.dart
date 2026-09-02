@@ -697,13 +697,13 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     super.initState();
     if (isWindows) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        setWindowExcludeFromCapture(isHideFromCaptureOn());
+        applyHideFromCapture(isHideFromCaptureOn());
         applyHotkeys();
       });
       // Re-apply after the window's show/opacity sequence settles, so the main
       // window is covered even if it wasn't fully shown at the first frame.
       Future.delayed(const Duration(milliseconds: 1500), () {
-        if (mounted) setWindowExcludeFromCapture(isHideFromCaptureOn());
+        if (mounted) applyHideFromCapture(isHideFromCaptureOn());
       });
     }
     _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {

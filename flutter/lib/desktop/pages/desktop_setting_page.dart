@@ -549,7 +549,7 @@ class _GeneralState extends State<_General> {
             optGetter: () => isHideFromCaptureOn(),
             optSetter: (k, v) async =>
                 await bind.mainSetLocalOption(key: k, value: v ? 'Y' : 'N'),
-            update: (bool v) => setWindowExcludeFromCapture(v),
+            update: (bool v) => applyHideFromCapture(v),
           ),
         if (isWindows)
           _HotkeyConfig(

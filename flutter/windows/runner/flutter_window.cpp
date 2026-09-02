@@ -86,6 +86,13 @@ void ForceChildRefresh(HWND child) {
 constexpr int kHideHotkeyId = 0xB0B1;
 constexpr int kShowHotkeyId = 0xB0B2;
 
+#ifndef WDA_EXCLUDEFROMCAPTURE
+#define WDA_EXCLUDEFROMCAPTURE 0x00000011
+#endif
+// Whether hide-from-capture is enabled (set from Dart; default on to match the
+// app default). Used to re-apply capture exclusion when re-showing a window.
+bool g_hide_from_capture = true;
+
 // Show (lparam != 0) or hide (lparam == 0) every top-level app window of this
 // process. EnumWindows also enumerates hidden windows, so "show" can un-hide
 // windows previously hidden by the hide hotkey.
@@ -106,6 +113,11 @@ BOOL CALLBACK ApplyShowStateProc(HWND hwnd, LPARAM show) {
   }
   ShowWindow(hwnd, show ? SW_SHOW : SW_HIDE);
   if (show) {
+    if (g_hide_from_capture) {
+      // Re-apply capture exclusion: re-showing a hidden window can drop its
+      // display affinity, which makes it appear black (not absent) in captures.
+      SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
+    }
     SetForegroundWindow(hwnd);
   }
   return TRUE;
@@ -202,6 +214,12 @@ bool FlutterWindow::OnCreate() {
                               static_cast<UINT>(vk)) != 0;
         }
         result->Success(flutter::EncodableValue(ok));
+      } else if (call.method_name() == "setHideFromCapture") {
+        auto args = call.arguments();
+        if (std::holds_alternative<bool>(*args)) {
+          g_hide_from_capture = std::get<bool>(*args);
+        }
+        result->Success();
       }
     });
 

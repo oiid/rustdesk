@@ -412,6 +412,16 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
       }
     }
     if (connLength <= 1) {
+      // Custom build: closing the last session window quits the whole app.
+      // Done here synchronously (before the window/isolate is torn down) so the
+      // kill reliably runs; taskkill removes every rustdesk.exe so nothing
+      // lingers in Task Manager.
+      if (isWindows) {
+        try {
+          Process.runSync('taskkill', ['/F', '/IM', 'rustdesk.exe']);
+        } catch (_) {}
+        exit(0);
+      }
       tabController.clear();
       return true;
     } else {
