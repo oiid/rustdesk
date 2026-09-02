@@ -26,6 +26,15 @@ class RdPlatformChannel {
     return result ?? false;
   }
 
+  /// Register (or re-register) the global show/hide hotkey. Windows only.
+  /// [keyCode] of 0 clears it. Returns whether registration succeeded.
+  Future<bool> setHideShowHotkey(
+      {required int modifiers, required int keyCode}) async {
+    bool? result = await _hostMethodChannel.invokeMethod(
+        "setHideShowHotkey", {"modifiers": modifiers, "keyCode": keyCode});
+    return result ?? false;
+  }
+
   /// Change the theme of the system window
   Future<void> changeSystemWindowTheme(SystemWindowTheme theme) {
     assert(isMacOS);

@@ -698,6 +698,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     if (isWindows) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         setWindowExcludeFromCapture(isHideFromCaptureOn());
+        applyHideShowHotkey();
       });
     }
     _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {

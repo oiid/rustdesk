@@ -551,6 +551,7 @@ class _GeneralState extends State<_General> {
                 await bind.mainSetLocalOption(key: k, value: v ? 'Y' : 'N'),
             update: (bool v) => setWindowExcludeFromCapture(v),
           ),
+        if (isWindows) const _HideShowHotkeyConfig(),
       ],
       if (!isWeb && !bind.isCustomClient())
         _OptionCheckBox(
@@ -2661,6 +2662,95 @@ Widget _Radio<T>(BuildContext context,
     ).marginOnly(left: _kRadioLeftMargin),
     onTap: () => onChange2?.call(value),
   );
+}
+
+// Configure the global hotkey that hides/shows all app windows.
+class _HideShowHotkeyConfig extends StatefulWidget {
+  const _HideShowHotkeyConfig();
+
+  @override
+  State<_HideShowHotkeyConfig> createState() => _HideShowHotkeyConfigState();
+}
+
+class _HideShowHotkeyConfigState extends State<_HideShowHotkeyConfig> {
+  late int _mods;
+  late int _vk;
+
+  @override
+  void initState() {
+    super.initState();
+    final hk = getHideShowHotkey();
+    _mods = hk[0];
+    _vk = hk[1];
+  }
+
+  void _apply() => updateHideShowHotkey(_mods, _vk);
+
+  Widget _mod(String label, int flag) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Checkbox(
+        value: (_mods & flag) != 0,
+        onChanged: (v) {
+          setState(() {
+            if (v == true) {
+              _mods |= flag;
+            } else {
+              _mods &= ~flag;
+            }
+          });
+          _apply();
+        },
+      ),
+      Text(label),
+      const SizedBox(width: 8),
+    ]);
+  }
+
+  List<DropdownMenuItem<int>> _keyItems() {
+    final items = <DropdownMenuItem<int>>[];
+    for (int c = 0x41; c <= 0x5A; c++) {
+      items.add(
+          DropdownMenuItem(value: c, child: Text(String.fromCharCode(c))));
+    }
+    for (int n = 1; n <= 12; n++) {
+      items.add(DropdownMenuItem(value: 0x6F + n, child: Text('F$n')));
+    }
+    for (int d = 0x30; d <= 0x39; d++) {
+      items.add(
+          DropdownMenuItem(value: d, child: Text(String.fromCharCode(d))));
+    }
+    return items;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(translate('Show/Hide window hotkey')),
+        const SizedBox(height: 6),
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _mod('Ctrl', kModControl),
+            _mod('Alt', kModAlt),
+            _mod('Shift', kModShift),
+            _mod('Win', kModWin),
+            DropdownButton<int>(
+              value: _vk,
+              items: _keyItems(),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _vk = v);
+                  _apply();
+                }
+              },
+            ),
+          ],
+        ),
+      ],
+    ).marginOnly(left: _kCheckBoxLeftMargin, top: 8, bottom: 8);
+  }
 }
 
 class WaylandCard extends StatefulWidget {

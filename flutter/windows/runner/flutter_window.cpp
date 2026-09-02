@@ -16,6 +16,7 @@
 
 #include <optional>
 #include <memory>
+#include <vector>
 
 #include "win32_desktop.h"
 
@@ -77,6 +78,54 @@ void ForceChildRefresh(HWND child) {
                SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_FRAMECHANGED);
 }
 
+// ---- Global hide/show hotkey ----
+// A single global hotkey (configured from the Dart settings page) toggles the
+// visibility of every top-level window of this process, so the whole app can be
+// summoned / dismissed instantly.
+constexpr int kHideShowHotkeyId = 0xB0B0;
+bool g_windows_hidden = false;
+std::vector<HWND> g_hidden_windows;
+
+BOOL CALLBACK CollectAppWindow(HWND hwnd, LPARAM lparam) {
+  DWORD pid = 0;
+  GetWindowThreadProcessId(hwnd, &pid);
+  if (pid != GetCurrentProcessId()) {
+    return TRUE;
+  }
+  if (GetWindow(hwnd, GW_OWNER) != nullptr) {
+    return TRUE;  // skip owned/dialog windows
+  }
+  if (GetWindowTextLengthW(hwnd) == 0) {
+    return TRUE;  // skip title-less helper windows
+  }
+  reinterpret_cast<std::vector<HWND>*>(lparam)->push_back(hwnd);
+  return TRUE;
+}
+
+void ToggleAllProcessWindows() {
+  if (!g_windows_hidden) {
+    std::vector<HWND> wins;
+    EnumWindows(CollectAppWindow, reinterpret_cast<LPARAM>(&wins));
+    g_hidden_windows.clear();
+    for (HWND h : wins) {
+      if (IsWindowVisible(h)) {
+        ShowWindow(h, SW_HIDE);
+        g_hidden_windows.push_back(h);
+      }
+    }
+    g_windows_hidden = true;
+  } else {
+    for (HWND h : g_hidden_windows) {
+      ShowWindow(h, SW_SHOW);
+    }
+    if (!g_hidden_windows.empty()) {
+      SetForegroundWindow(g_hidden_windows.back());
+    }
+    g_hidden_windows.clear();
+    g_windows_hidden = false;
+  }
+}
+
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -107,7 +156,7 @@ bool FlutterWindow::OnCreate() {
     &flutter::StandardMethodCodec::GetInstance());
 
   channel.SetMethodCallHandler(
-    [](const flutter::MethodCall<>& call, std::unique_ptr<flutter::MethodResult<>> result) {
+    [this](const flutter::MethodCall<>& call, std::unique_ptr<flutter::MethodResult<>> result) {
       if (call.method_name() == "bumpMouse") {
         auto arguments = call.arguments();
 
@@ -139,6 +188,31 @@ bool FlutterWindow::OnCreate() {
         bool succeeded = Win32Desktop::BumpMouse(dx, dy);
 
         result->Success(succeeded);
+      } else if (call.method_name() == "setHideShowHotkey") {
+        int mods = 0, vk = 0;
+        auto arguments = call.arguments();
+        if (std::holds_alternative<flutter::EncodableMap>(*arguments)) {
+          auto argsMap = std::get<flutter::EncodableMap>(*arguments);
+          auto mIt = argsMap.find(flutter::EncodableValue("modifiers"));
+          auto kIt = argsMap.find(flutter::EncodableValue("keyCode"));
+          if ((mIt != argsMap.end()) && std::holds_alternative<int>(mIt->second)) {
+            mods = std::get<int>(mIt->second);
+          }
+          if ((kIt != argsMap.end()) && std::holds_alternative<int>(kIt->second)) {
+            vk = std::get<int>(kIt->second);
+          }
+        }
+        UnregisterHotKey(this->GetHandle(), kHideShowHotkeyId);
+        bool ok = true;
+        if (vk != 0) {
+          ok = RegisterHotKey(this->GetHandle(), kHideShowHotkeyId,
+                              static_cast<UINT>(mods) | MOD_NOREPEAT,
+                              static_cast<UINT>(vk)) != 0;
+        }
+        result->Success(flutter::EncodableValue(ok));
+      } else if (call.method_name() == "clearHideShowHotkey") {
+        UnregisterHotKey(this->GetHandle(), kHideShowHotkeyId);
+        result->Success();
       }
     });
 
@@ -185,6 +259,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_HOTKEY:
+      if (static_cast<int>(wparam) == kHideShowHotkeyId) {
+        ToggleAllProcessWindows();
+        return 0;
+      }
+      break;
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

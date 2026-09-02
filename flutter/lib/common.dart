@@ -2922,6 +2922,45 @@ bool isHideFromCaptureOn() {
   return bind.mainGetLocalOption(key: kOptionHideFromScreenCapture) != 'N';
 }
 
+// Win32 global-hotkey modifier flags (see RegisterHotKey).
+const int kModAlt = 0x1;
+const int kModControl = 0x2;
+const int kModShift = 0x4;
+const int kModWin = 0x8;
+
+/// The stored show/hide hotkey as [modifiers, keyCode] (Win32 values).
+/// Defaults to Ctrl+Alt+H.
+List<int> getHideShowHotkey() {
+  final def = [kModControl | kModAlt, 0x48]; // Ctrl+Alt+H
+  final raw = bind.mainGetLocalOption(key: kOptionHideShowHotkey);
+  if (raw.isEmpty) return def;
+  final parts = raw.split(',');
+  if (parts.length != 2) return def;
+  final mods = int.tryParse(parts[0]);
+  final vk = int.tryParse(parts[1]);
+  if (mods == null || vk == null) return def;
+  return [mods, vk];
+}
+
+/// Persist and (on Windows) register the show/hide hotkey immediately.
+Future<void> updateHideShowHotkey(int modifiers, int keyCode) async {
+  await bind.mainSetLocalOption(
+      key: kOptionHideShowHotkey, value: '$modifiers,$keyCode');
+  if (isWindows) {
+    await RdPlatformChannel.instance
+        .setHideShowHotkey(modifiers: modifiers, keyCode: keyCode);
+  }
+}
+
+/// Register the stored show/hide hotkey with the native runner (call at
+/// startup from the main window).
+Future<void> applyHideShowHotkey() async {
+  if (!isWindows) return;
+  final hk = getHideShowHotkey();
+  await RdPlatformChannel.instance
+      .setHideShowHotkey(modifiers: hk[0], keyCode: hk[1]);
+}
+
 /// Indicating we need to use compatible ui mode.
 ///
 /// [Conditions]
