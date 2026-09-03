@@ -122,28 +122,62 @@ void setWindowExcludeFromCapture_(bool enable) {
 // any isolate (including a remote-session sub-window) so the hide/show hotkey
 // works even while the remote view has keyboard focus.
 
-const int _swHide = 0;
-const int _swShow = 5;
 const int _gwOwner = 4;
+// SetWindowPos flags: NOSIZE | NOZORDER | NOACTIVATE.
+const int _swpMove = 0x0001 | 0x0004 | 0x0010;
+// Offset added to stashed coordinates so they are always positive & non-zero
+// (a window property value of 0 is indistinguishable from "not set").
+const int _hideOff = 100000;
 
 int _showTargetPid = 0;
 bool _showStateShow = false;
 int Function(int hWnd, Pointer<Uint32> lpdwProcessId)? _showGetWinThreadPid;
 int Function(int hWnd, int uCmd)? _getWindow;
 int Function(int hWnd)? _getWindowTextLength;
-int Function(int hWnd, int nCmdShow)? _showWindow;
 int Function(int hWnd, Pointer<Utf16> lpString)? _getProp;
+int Function(int hWnd, Pointer<Utf16> lpString, int hData)? _setProp;
+int Function(int hWnd, Pointer<Utf16> lpString)? _removeProp;
+int Function(int hWnd, Pointer<Int32> lpRect)? _getWindowRect;
+int Function(int hWnd, int after, int x, int y, int cx, int cy, int flags)?
+    _setWindowPos;
 Pointer<Utf16>? _mainWinPropPtr;
+Pointer<Utf16>? _hideXPropPtr;
+Pointer<Utf16>? _hideYPropPtr;
 
+// Move each window far off-screen to "hide" and back to "show". We never use
+// SW_HIDE/SW_SHOW: hiding recreates the render surface, which then leaks black
+// in captures. The original top-left is stashed in window properties so hide
+// and show stay consistent regardless of which code path runs them.
 int _applyShowStateToWindow(int hWnd, int lParam) {
   final pid = calloc<Uint32>();
   try {
     _showGetWinThreadPid!(hWnd, pid);
-    if (pid.value == _showTargetPid &&
-        _getWindow!(hWnd, _gwOwner) == 0 &&
-        _getWindowTextLength!(hWnd) != 0 &&
-        _getProp!(hWnd, _mainWinPropPtr!) == 0) {
-      _showWindow!(hWnd, _showStateShow ? _swShow : _swHide);
+    if (pid.value != _showTargetPid ||
+        _getWindow!(hWnd, _gwOwner) != 0 ||
+        _getWindowTextLength!(hWnd) == 0 ||
+        _getProp!(hWnd, _mainWinPropPtr!) != 0) {
+      return 1; // skip other processes, dialogs, helpers and the main window
+    }
+    if (_showStateShow) {
+      final hx = _getProp!(hWnd, _hideXPropPtr!);
+      if (hx != 0) {
+        final x = hx - _hideOff;
+        final y = _getProp!(hWnd, _hideYPropPtr!) - _hideOff;
+        _setWindowPos!(hWnd, 0, x, y, 0, 0, _swpMove);
+        _removeProp!(hWnd, _hideXPropPtr!);
+        _removeProp!(hWnd, _hideYPropPtr!);
+      }
+    } else {
+      if (_getProp!(hWnd, _hideXPropPtr!) == 0) {
+        final rect = calloc<Int32>(4);
+        _getWindowRect!(hWnd, rect);
+        final left = rect[0];
+        final top = rect[1];
+        calloc.free(rect);
+        _setProp!(hWnd, _hideXPropPtr!, left + _hideOff);
+        _setProp!(hWnd, _hideYPropPtr!, top + _hideOff);
+        _setWindowPos!(hWnd, 0, -32000, -32000, 0, 0, _swpMove);
+      }
     }
   } finally {
     calloc.free(pid);
@@ -151,8 +185,9 @@ int _applyShowStateToWindow(int hWnd, int lParam) {
   return 1;
 }
 
-/// Show or hide every top-level app window of this process. Safe no-op off
-/// Windows. Call wrapped with `Platform.isWindows`.
+/// Show or hide every top-level app window of this process by moving it
+/// off-screen and back (never SW_HIDE/SW_SHOW). Safe no-op off Windows. Call
+/// wrapped with `Platform.isWindows`.
 void setAllWindowsShown_(bool show) {
   if (!Platform.isWindows) return;
   final user32 = DynamicLibrary.open('user32.dll');
@@ -165,11 +200,23 @@ void setAllWindowsShown_(bool show) {
       int Function(int hWnd, int uCmd)>('GetWindow');
   _getWindowTextLength = user32.lookupFunction<Int32 Function(IntPtr hWnd),
       int Function(int hWnd)>('GetWindowTextLengthW');
-  _showWindow = user32.lookupFunction<Int32 Function(IntPtr hWnd, Int32 n),
-      int Function(int hWnd, int n)>('ShowWindow');
   _getProp = user32.lookupFunction<
       IntPtr Function(IntPtr hWnd, Pointer<Utf16> lpString),
       int Function(int hWnd, Pointer<Utf16> lpString)>('GetPropW');
+  _setProp = user32.lookupFunction<
+      Int32 Function(IntPtr hWnd, Pointer<Utf16> lpString, IntPtr hData),
+      int Function(int hWnd, Pointer<Utf16> lpString, int hData)>('SetPropW');
+  _removeProp = user32.lookupFunction<
+      IntPtr Function(IntPtr hWnd, Pointer<Utf16> lpString),
+      int Function(int hWnd, Pointer<Utf16> lpString)>('RemovePropW');
+  _getWindowRect = user32.lookupFunction<
+      Int32 Function(IntPtr hWnd, Pointer<Int32> lpRect),
+      int Function(int hWnd, Pointer<Int32> lpRect)>('GetWindowRect');
+  _setWindowPos = user32.lookupFunction<
+      Int32 Function(IntPtr hWnd, IntPtr after, Int32 x, Int32 y, Int32 cx,
+          Int32 cy, Uint32 flags),
+      int Function(int hWnd, int after, int x, int y, int cx, int cy,
+          int flags)>('SetWindowPos');
   final getCurrentProcessId = kernel32
       .lookupFunction<Uint32 Function(), int Function()>('GetCurrentProcessId');
   final enumWindows = user32.lookupFunction<
@@ -180,9 +227,15 @@ void setAllWindowsShown_(bool show) {
   _showTargetPid = getCurrentProcessId();
   _showStateShow = show;
   _mainWinPropPtr = 'RustDeskMainWin'.toNativeUtf16(allocator: calloc);
+  _hideXPropPtr = 'RDHideX'.toNativeUtf16(allocator: calloc);
+  _hideYPropPtr = 'RDHideY'.toNativeUtf16(allocator: calloc);
   final cb =
       Pointer.fromFunction<_NativeEnumWindowsProc>(_applyShowStateToWindow, 0);
   enumWindows(cb, 0);
   calloc.free(_mainWinPropPtr!);
+  calloc.free(_hideXPropPtr!);
+  calloc.free(_hideYPropPtr!);
   _mainWinPropPtr = null;
+  _hideXPropPtr = null;
+  _hideYPropPtr = null;
 }

@@ -111,14 +111,42 @@ BOOL CALLBACK ApplyShowStateProc(HWND hwnd, LPARAM show) {
   if (GetPropW(hwnd, L"RustDeskMainWin") != nullptr) {
     return TRUE;  // never auto show/hide the main (connection) window
   }
-  ShowWindow(hwnd, show ? SW_SHOW : SW_HIDE);
+  // We do NOT use SW_HIDE / SW_SHOW: hiding a window destroys/recreates its
+  // render surface, and the recreated surface leaks black in captures even with
+  // the display affinity re-applied. Instead we move the window far off-screen
+  // (invisible to the user, off every monitor, still not captured) and back,
+  // which never disturbs the surface or the capture exclusion. The original
+  // top-left is stashed in window properties (offset by +100000 so it's always
+  // a non-zero, positive value) so hide and show stay consistent no matter
+  // which code path (native hotkey or Dart) runs them.
+  const int kOff = 100000;
   if (show) {
+    HANDLE hx = GetPropW(hwnd, L"RDHideX");
+    if (hx != nullptr) {
+      int x = static_cast<int>(reinterpret_cast<INT_PTR>(hx)) - kOff;
+      int y = static_cast<int>(
+                  reinterpret_cast<INT_PTR>(GetPropW(hwnd, L"RDHideY"))) -
+              kOff;
+      SetWindowPos(hwnd, nullptr, x, y, 0, 0,
+                   SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+      RemovePropW(hwnd, L"RDHideX");
+      RemovePropW(hwnd, L"RDHideY");
+    }
     if (g_hide_from_capture) {
-      // Re-apply capture exclusion: re-showing a hidden window can drop its
-      // display affinity, which makes it appear black (not absent) in captures.
       SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
     }
     SetForegroundWindow(hwnd);
+  } else {
+    if (GetPropW(hwnd, L"RDHideX") == nullptr) {
+      RECT r;
+      GetWindowRect(hwnd, &r);
+      SetPropW(hwnd, L"RDHideX",
+               reinterpret_cast<HANDLE>(static_cast<INT_PTR>(r.left + kOff)));
+      SetPropW(hwnd, L"RDHideY",
+               reinterpret_cast<HANDLE>(static_cast<INT_PTR>(r.top + kOff)));
+      SetWindowPos(hwnd, nullptr, -32000, -32000, 0, 0,
+                   SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
   }
   return TRUE;
 }
