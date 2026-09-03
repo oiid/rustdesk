@@ -4211,7 +4211,13 @@ class PeerInfo with ChangeNotifier {
 
   bool get isSupportMultiDisplay =>
       (isDesktop || isWebDesktop) && isSupportMultiUiSession;
-  bool get forceTextureRender => currentDisplay == kAllDisplayValue;
+  // Custom build: hide-from-capture requires software rendering, because
+  // hardware texture surfaces are not covered by the window's
+  // WDA_EXCLUDEFROMCAPTURE and so leak into screen captures/shares during a
+  // live session. Never force texture while hide-from-capture is on. Keep in
+  // sync with the Rust use_texture_render() and Dart useTextureRender guards.
+  bool get forceTextureRender =>
+      currentDisplay == kAllDisplayValue && !isHideFromCaptureOn();
 
   bool get cursorEmbedded => tryGetDisplay()?.cursorEmbedded ?? false;
 

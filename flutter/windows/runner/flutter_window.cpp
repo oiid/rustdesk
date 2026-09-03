@@ -299,6 +299,23 @@ bool FlutterWindow::OnCreate() {
         registry->GetRegistrarForPlugin("TextureRgbaRendererPlugin"));
     FlutterGpuTextureRendererPluginCApiRegisterWithRegistrar(
         registry->GetRegistrarForPlugin("FlutterGpuTextureRendererPluginCApi"));
+    // Custom build: apply capture-exclusion + tool-window to each sub-window
+    // (remote / file-transfer / ...) at creation, before it is shown. The main
+    // window is handled below in OnCreate; sub-windows created by the
+    // desktop_multi_window plugin were only excluded later (via the Dart
+    // post-frame callback or a hide/show toggle), leaving the remote view
+    // capturable in between. Doing it here removes that gap and any taskbar
+    // flash.
+    HWND view_hwnd = flutter_view_controller->view()->GetNativeWindow();
+    HWND top = view_hwnd ? GetAncestor(view_hwnd, GA_ROOT) : nullptr;
+    if (top) {
+      if (g_hide_from_capture) {
+        SetWindowDisplayAffinity(top, WDA_EXCLUDEFROMCAPTURE);
+      }
+      LONG_PTR ex = GetWindowLongPtr(top, GWL_EXSTYLE);
+      SetWindowLongPtr(top, GWL_EXSTYLE,
+                       (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW);
+    }
   });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
