@@ -108,8 +108,14 @@ BOOL CALLBACK ApplyShowStateProc(HWND hwnd, LPARAM show) {
   if (GetWindowTextLengthW(hwnd) == 0) {
     return TRUE;  // skip title-less helper windows
   }
-  if (GetPropW(hwnd, L"RustDeskMainWin") != nullptr) {
-    return TRUE;  // never auto show/hide the main (connection) window
+  // Keep every app window out of the taskbar / Alt+Tab (covers the plugin-
+  // created sub-windows that the runner's OnCreate never touches).
+  {
+    LONG_PTR ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+    if (!(ex & WS_EX_TOOLWINDOW)) {
+      SetWindowLongPtr(hwnd, GWL_EXSTYLE,
+                       (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW);
+    }
   }
   // We do NOT use SW_HIDE / SW_SHOW (or off-screen moves): hiding recreates the
   // window's render surface, which then leaks black in captures, and moving a
@@ -250,12 +256,13 @@ bool FlutterWindow::OnCreate() {
 #endif
   SetWindowDisplayAffinity(GetHandle(), WDA_EXCLUDEFROMCAPTURE);
 
-  // Mark this (the main / connection window) so the global hide/show hotkey
-  // never toggles it - only the remote-session windows should hide/show. Remote
-  // windows are created by the multi-window plugin, not this runner, so they
-  // don't get this property.
-  SetPropW(GetHandle(), L"RustDeskMainWin",
-           reinterpret_cast<HANDLE>(static_cast<INT_PTR>(1)));
+  // Keep this window out of the taskbar and Alt+Tab (set before it is shown, so
+  // no taskbar button is ever created).
+  {
+    LONG_PTR ex = GetWindowLongPtr(GetHandle(), GWL_EXSTYLE);
+    SetWindowLongPtr(GetHandle(), GWL_EXSTYLE,
+                     (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW);
+  }
 
   // See the comment on kForceRedrawTimerId above.
   flutter_controller_->engine()->SetNextFrameCallback(

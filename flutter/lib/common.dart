@@ -2996,6 +2996,15 @@ void setAllWindowsShown(bool show) {
   setAllWindowsShown_(show);
 }
 
+/// The current foreground window handle (Windows only, else 0).
+int getForegroundWindow() => getForegroundWindow_();
+
+/// Hide ([clipped] true) or show a single window, keeping it out of the taskbar
+/// / Alt+Tab. Used for hide-on-focus-loss so only the blurred window hides.
+/// Windows only.
+void setWindowClipped(int hwnd, bool clipped) =>
+    setWindowClipped_(hwnd, clipped);
+
 // Win32 virtual-key for a Flutter key label, limited to the keys the hotkey
 // selector offers (A-Z, 0-9, F1-F12). Returns 0 if unsupported.
 int _labelToVk(String label) {

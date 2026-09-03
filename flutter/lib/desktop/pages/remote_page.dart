@@ -89,6 +89,7 @@ class _RemotePageState extends State<RemotePage>
   Timer? _timer;
   String keyboardMode = "legacy";
   bool _isWindowBlur = false;
+  int _selfHwnd = 0; // this window's handle, for hide-on-focus-loss (Windows)
   // Known macOS remote-input trade-offs (kept simple intentionally):
   // 1. Dialogs rely on FocusNode loss plus middleBlocked, not mirrored dialog
   //    state. Reproduce: activate remote input, open a dialog, then type.
@@ -475,6 +476,9 @@ class _RemotePageState extends State<RemotePage>
   @override
   void onWindowBlur() {
     super.onWindowBlur();
+    // Custom build: hide this window when it loses focus (same as the hide
+    // hotkey), but only this window so switching windows within the app is ok.
+    if (isWindows && _selfHwnd != 0) setWindowClipped(_selfHwnd, true);
     // On windows, we use `focus` way to handle keyboard better.
     // Now on Linux, there's some rdev issues which will break the input.
     // We disable the `focus` way for Linux temporarily.
@@ -511,6 +515,7 @@ class _RemotePageState extends State<RemotePage>
       _isWindowBlur = false;
     }
     if (isMacOS) stateGlobal.getInputSource(force: true);
+    if (isWindows) _selfHwnd = getForegroundWindow();
     stateGlobal.isFocused.value = true;
 
     // Normal macOS windows wait for PointerEnter or PointerDown. A focused

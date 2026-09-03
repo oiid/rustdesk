@@ -129,10 +129,8 @@ bool _showStateShow = false;
 int Function(int hWnd, Pointer<Uint32> lpdwProcessId)? _showGetWinThreadPid;
 int Function(int hWnd, int uCmd)? _getWindow;
 int Function(int hWnd)? _getWindowTextLength;
-int Function(int hWnd, Pointer<Utf16> lpString)? _getProp;
 int Function(int hWnd, int hRgn, int bRedraw)? _setWindowRgn;
 int Function(int x1, int y1, int x2, int y2)? _createRectRgn;
-Pointer<Utf16>? _mainWinPropPtr;
 
 // Hide by clipping the window to an empty region; show by removing the region.
 // The window is never SW_HIDDEN or moved, so its render surface, position,
@@ -144,9 +142,8 @@ int _applyShowStateToWindow(int hWnd, int lParam) {
     _showGetWinThreadPid!(hWnd, pid);
     if (pid.value != _showTargetPid ||
         _getWindow!(hWnd, _gwOwner) != 0 ||
-        _getWindowTextLength!(hWnd) == 0 ||
-        _getProp!(hWnd, _mainWinPropPtr!) != 0) {
-      return 1; // skip other processes, dialogs, helpers and the main window
+        _getWindowTextLength!(hWnd) == 0) {
+      return 1; // skip other processes, dialogs and title-less helpers
     }
     if (_showStateShow) {
       _setWindowRgn!(hWnd, 0, 1); // NULL region -> restore the full window
@@ -175,9 +172,6 @@ void setAllWindowsShown_(bool show) {
       int Function(int hWnd, int uCmd)>('GetWindow');
   _getWindowTextLength = user32.lookupFunction<Int32 Function(IntPtr hWnd),
       int Function(int hWnd)>('GetWindowTextLengthW');
-  _getProp = user32.lookupFunction<
-      IntPtr Function(IntPtr hWnd, Pointer<Utf16> lpString),
-      int Function(int hWnd, Pointer<Utf16> lpString)>('GetPropW');
   _setWindowRgn = user32.lookupFunction<
       Int32 Function(IntPtr hWnd, IntPtr hRgn, Int32 bRedraw),
       int Function(int hWnd, int hRgn, int bRedraw)>('SetWindowRgn');
@@ -193,10 +187,49 @@ void setAllWindowsShown_(bool show) {
           int lParam)>('EnumWindows');
   _showTargetPid = getCurrentProcessId();
   _showStateShow = show;
-  _mainWinPropPtr = 'RustDeskMainWin'.toNativeUtf16(allocator: calloc);
   final cb =
       Pointer.fromFunction<_NativeEnumWindowsProc>(_applyShowStateToWindow, 0);
   enumWindows(cb, 0);
-  calloc.free(_mainWinPropPtr!);
-  _mainWinPropPtr = null;
+}
+
+// ===== Per-window auto-hide (used for hide-on-focus-loss) =====
+// Hides ONLY the given window (clip to empty region) so losing focus on one
+// window doesn't hide the others (e.g. connecting moves focus main -> remote).
+
+/// The current foreground window handle (0 off Windows / on failure).
+int getForegroundWindow_() {
+  if (!Platform.isWindows) return 0;
+  final user32 = DynamicLibrary.open('user32.dll');
+  final f = user32
+      .lookupFunction<IntPtr Function(), int Function()>('GetForegroundWindow');
+  return f();
+}
+
+/// Clip [hwnd] to an empty region (hide) or remove the clip (show). Also keeps
+/// the window out of the taskbar / Alt+Tab. No-op off Windows / for handle 0.
+void setWindowClipped_(int hwnd, bool clipped) {
+  if (!Platform.isWindows || hwnd == 0) return;
+  final user32 = DynamicLibrary.open('user32.dll');
+  final gdi32 = DynamicLibrary.open('gdi32.dll');
+  final getLong = user32.lookupFunction<IntPtr Function(IntPtr hWnd, Int32 idx),
+      int Function(int hWnd, int idx)>('GetWindowLongPtrW');
+  final setLong = user32.lookupFunction<
+      IntPtr Function(IntPtr hWnd, Int32 idx, IntPtr v),
+      int Function(int hWnd, int idx, int v)>('SetWindowLongPtrW');
+  const gwlExStyle = -20;
+  const wsExToolWindow = 0x00000080;
+  const wsExAppWindow = 0x00040000;
+  final ex = getLong(hwnd, gwlExStyle);
+  setLong(hwnd, gwlExStyle, (ex | wsExToolWindow) & ~wsExAppWindow);
+  final setRgn = user32.lookupFunction<
+      Int32 Function(IntPtr hWnd, IntPtr hRgn, Int32 bRedraw),
+      int Function(int hWnd, int hRgn, int bRedraw)>('SetWindowRgn');
+  if (clipped) {
+    final createRgn = gdi32.lookupFunction<
+        IntPtr Function(Int32 x1, Int32 y1, Int32 x2, Int32 y2),
+        int Function(int x1, int y1, int x2, int y2)>('CreateRectRgn');
+    setRgn(hwnd, createRgn(0, 0, 0, 0), 1);
+  } else {
+    setRgn(hwnd, 0, 1);
+  }
 }

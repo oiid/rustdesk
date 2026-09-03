@@ -283,6 +283,23 @@ class _ConnectionPageState extends State<ConnectionPage>
         : windowResizeEdgeSize;
   }
 
+  int _selfHwnd = 0;
+
+  @override
+  void onWindowFocus() {
+    super.onWindowFocus();
+    if (isWindows) _selfHwnd = getForegroundWindow();
+  }
+
+  @override
+  void onWindowBlur() {
+    super.onWindowBlur();
+    // Custom build: hide this window when it loses focus, same as the hide
+    // hotkey (only this window, so connecting - which moves focus to the remote
+    // window - doesn't hide the remote view).
+    if (isWindows && _selfHwnd != 0) setWindowClipped(_selfHwnd, true);
+  }
+
   @override
   void onWindowClose() {
     super.onWindowClose();
