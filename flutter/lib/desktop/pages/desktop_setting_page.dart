@@ -2734,6 +2734,24 @@ class _HotkeyConfigState extends State<_HotkeyConfig> {
       items.add(
           DropdownMenuItem(value: d, child: Text(String.fromCharCode(d))));
     }
+    // OEM / punctuation keys (Win32 VK codes). ` (backtick) is 0xC0 - a good
+    // pick for a Win-based hide/show hotkey since it is never typed as content.
+    const symbols = <int, String>{
+      0xC0: '` (backtick)',
+      0xBD: '- (minus)',
+      0xBB: '= (equals)',
+      0xDB: '[',
+      0xDD: ']',
+      0xDC: r'\',
+      0xBA: '; (semicolon)',
+      0xDE: "' (quote)",
+      0xBC: ', (comma)',
+      0xBE: '. (period)',
+      0xBF: '/ (slash)',
+    };
+    symbols.forEach((vk, label) {
+      items.add(DropdownMenuItem(value: vk, child: Text(label)));
+    });
     return items;
   }
 

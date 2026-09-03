@@ -2950,13 +2950,14 @@ List<int> _getHotkey(String key, List<int> def) {
   return [mods, vk];
 }
 
-/// The "hide window(s)" hotkey. Defaults to Ctrl+Alt+H.
-List<int> getHideHotkey() =>
-    _getHotkey(kOptionHideHotkey, [kModControl | kModAlt, 0x48]);
+/// The "hide window(s)" hotkey. Defaults to Win+` (0xC0).
+/// Win-based hotkeys are required to work while controlling the remote: the
+/// client never forwards Win-key combos to the peer, so they reach the OS and
+/// fire this hotkey instead of typing into the VPS.
+List<int> getHideHotkey() => _getHotkey(kOptionHideHotkey, [kModWin, 0xC0]);
 
-/// The "show window(s)" hotkey. Defaults to Ctrl+Alt+S.
-List<int> getShowHotkey() =>
-    _getHotkey(kOptionShowHotkey, [kModControl | kModAlt, 0x53]);
+/// The "show window(s)" hotkey. Defaults to Win+\ (0xDC).
+List<int> getShowHotkey() => _getHotkey(kOptionShowHotkey, [kModWin, 0xDC]);
 
 /// Persist and (on Windows) register the hide hotkey immediately.
 Future<void> updateHideHotkey(int modifiers, int keyCode) async {
