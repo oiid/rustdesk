@@ -112,6 +112,14 @@ void ForceForeground(HWND hwnd) {
   }
 }
 
+// The window of THIS process that held the foreground when we last hid, so
+// "show" can hand keyboard focus back to exactly that window (e.g. the remote
+// window that owns the connect-password field) instead of some other window.
+HWND g_last_foreground = nullptr;
+// First eligible window seen during a "show" pass - the fallback focus target
+// when we have no recorded foreground (e.g. show without a prior native hide).
+HWND g_show_first = nullptr;
+
 // Show (lparam != 0) or hide (lparam == 0) every top-level app window of this
 // process. EnumWindows also enumerates hidden windows, so "show" can un-hide
 // windows previously hidden by the hide hotkey.
@@ -148,8 +156,12 @@ BOOL CALLBACK ApplyShowStateProc(HWND hwnd, LPARAM show) {
     if (g_hide_from_capture) {
       SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
     }
-    if (IsWindowVisible(hwnd)) {
-      ForceForeground(hwnd);  // reliably focus in one press
+    // Do NOT foreground here: foregrounding every window in turn lets the last
+    // one enumerated (lowest in Z-order) steal focus, which is what broke
+    // typing/paste in the connect-password field after a hide/show. We restore
+    // focus to a single window once, in SetAllProcessWindowsShown.
+    if (g_show_first == nullptr && IsWindowVisible(hwnd)) {
+      g_show_first = hwnd;
     }
   } else {
     SetWindowRgn(hwnd, CreateRectRgn(0, 0, 0, 0), TRUE);  // clip to nothing
@@ -158,7 +170,29 @@ BOOL CALLBACK ApplyShowStateProc(HWND hwnd, LPARAM show) {
 }
 
 void SetAllProcessWindowsShown(bool show) {
-  EnumWindows(ApplyShowStateProc, show ? TRUE : FALSE);
+  if (!show) {
+    // Remember which of our windows had keyboard focus so "show" can give it
+    // straight back (the password field lives in whichever window was active).
+    HWND fg = GetForegroundWindow();
+    DWORD pid = 0;
+    if (fg) {
+      GetWindowThreadProcessId(fg, &pid);
+    }
+    g_last_foreground = (fg && pid == GetCurrentProcessId()) ? fg : nullptr;
+    EnumWindows(ApplyShowStateProc, FALSE);
+    return;
+  }
+  g_show_first = nullptr;
+  EnumWindows(ApplyShowStateProc, TRUE);
+  // Restore focus to exactly one window: the one that was active when we hid,
+  // else the top-most window we just un-hid.
+  HWND target = (g_last_foreground && IsWindow(g_last_foreground) &&
+                 IsWindowVisible(g_last_foreground))
+                    ? g_last_foreground
+                    : g_show_first;
+  if (target && IsWindow(target) && IsWindowVisible(target)) {
+    ForceForeground(target);
+  }
 }
 
 }  // namespace
