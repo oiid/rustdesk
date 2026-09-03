@@ -1606,23 +1606,19 @@ pub mod input_source {
 
     #[inline]
     pub fn get_cur_session_input_source() -> String {
-        // Custom build: force Flutter input mode on Windows so the app's global
-        // hide/show hotkey can be intercepted; rdev grab mode (Input source 1)
-        // swallows keys before they reach the app.
-        #[cfg(windows)]
-        return CONFIG_INPUT_SOURCE_2.to_string();
-        #[cfg(not(windows))]
-        {
-            #[cfg(target_os = "linux")]
-            if !crate::platform::linux::is_x11() {
-                return CONFIG_INPUT_SOURCE_2.to_string();
-            }
-            let input_source = get_local_option(CONFIG_OPTION_INPUT_SOURCE.to_string());
-            if input_source.is_empty() {
-                CONFIG_INPUT_SOURCE_DEFAULT.to_string()
-            } else {
-                input_source
-            }
+        // Custom build note: we use the default rdev input source on Windows so
+        // keyboard typing forwards reliably. The hide/show hotkey still works:
+        // "hide" happens by clicking away (auto-hide on blur), and "show" fires
+        // while the window is hidden/unfocused, when rdev isn't capturing keys.
+        #[cfg(target_os = "linux")]
+        if !crate::platform::linux::is_x11() {
+            return CONFIG_INPUT_SOURCE_2.to_string();
+        }
+        let input_source = get_local_option(CONFIG_OPTION_INPUT_SOURCE.to_string());
+        if input_source.is_empty() {
+            CONFIG_INPUT_SOURCE_DEFAULT.to_string()
+        } else {
+            input_source
         }
     }
 
