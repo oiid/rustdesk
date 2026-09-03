@@ -609,6 +609,51 @@ fn should_block_relative_mouse_shortcut(key: Key, is_press: bool) -> bool {
     false
 }
 
+// Custom build: does (current modifiers + [vk]) match a stored hotkey option
+// ("mods,vk" in Win32 MOD_/VK values)?
+#[cfg(target_os = "windows")]
+fn hide_show_hotkey_matches(vk: i32, opt: &str) -> bool {
+    let mut it = opt.split(',');
+    let want_mods = it.next().and_then(|s| s.trim().parse::<i32>().ok());
+    let want_vk = it.next().and_then(|s| s.trim().parse::<i32>().ok());
+    let (want_mods, want_vk) = match (want_mods, want_vk) {
+        (Some(m), Some(v)) => (m, v),
+        _ => return false,
+    };
+    if want_vk == 0 || vk != want_vk {
+        return false;
+    }
+    use winapi::um::winuser::{
+        GetAsyncKeyState, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
+    };
+    let down = |k: i32| -> bool { (unsafe { GetAsyncKeyState(k) } as u16 & 0x8000u16) != 0 };
+    let mut mods = 0;
+    if down(VK_CONTROL) {
+        mods |= 2; // MOD_CONTROL
+    }
+    if down(VK_MENU) {
+        mods |= 1; // MOD_ALT
+    }
+    if down(VK_SHIFT) {
+        mods |= 4; // MOD_SHIFT
+    }
+    if down(VK_LWIN) || down(VK_RWIN) {
+        mods |= 8; // MOD_WIN
+    }
+    mods == want_mods
+}
+
+// Custom build: is [vk] (with the currently-held modifiers) the app's hide or
+// show hotkey? Defaults match the Dart side (Ctrl+Alt+H / Ctrl+Alt+S).
+#[cfg(target_os = "windows")]
+fn is_hide_show_hotkey(vk: i32) -> bool {
+    let hide = crate::ui_interface::get_local_option("hide-hotkey".to_owned());
+    let show = crate::ui_interface::get_local_option("show-hotkey".to_owned());
+    let hide = if hide.is_empty() { "3,72".to_owned() } else { hide };
+    let show = if show.is_empty() { "3,83".to_owned() } else { show };
+    hide_show_hotkey_matches(vk, &hide) || hide_show_hotkey_matches(vk, &show)
+}
+
 fn start_grab_loop() {
     std::env::set_var("KEYBOARD_ONLY", "y");
     #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -616,6 +661,14 @@ fn start_grab_loop() {
         let try_handle_keyboard = move |event: Event, key: Key, is_press: bool| -> Option<Event> {
             // fix #2211：CAPS LOCK don't work
             if key == Key::CapsLock || key == Key::NumLock {
+                return Some(event);
+            }
+
+            // Custom build: the app's hide/show hotkey must NOT be sent to the
+            // peer - pass it to the OS so the registered global hotkey fires
+            // (hide/show). Only this exact combo matches, so typing is untouched.
+            #[cfg(target_os = "windows")]
+            if is_hide_show_hotkey(event.platform_code as i32) {
                 return Some(event);
             }
 

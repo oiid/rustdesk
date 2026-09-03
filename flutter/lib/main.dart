@@ -249,6 +249,12 @@ void runMultiWindow(
           peerId: argument['id'] as String?,
           display: argument['display'] as int?,
         );
+        // Custom build: open the remote window maximized by default.
+        if (isWindows) {
+          try {
+            await windowManager.maximize();
+          } catch (_) {}
+        }
       }
       break;
     case kAppTypeDesktopFileTransfer:
