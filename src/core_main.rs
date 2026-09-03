@@ -173,8 +173,16 @@ pub fn core_main() -> Option<Vec<String>> {
         return try_send_by_dbus(args[0].clone());
     }
 
+    // Custom build: this is a control-only client. It never hosts / is never
+    // controlled, so it never needs the SYSTEM-level "portable service" that
+    // stock RustDesk starts to capture an elevated desktop. Starting it is what
+    // spawns a SECOND, SYSTEM-owned rustdesk.exe whenever the app happens to run
+    // elevated - e.g. under the built-in Administrator account or "Run as
+    // administrator", which is exactly why it appeared on one machine and not
+    // another. Skip it so only the single UI process runs.
     #[cfg(windows)]
-    if !crate::platform::is_installed()
+    if false
+        && !crate::platform::is_installed()
         && args.is_empty()
         && _is_quick_support
         && !_is_elevate
