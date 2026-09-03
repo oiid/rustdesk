@@ -93,6 +93,25 @@ constexpr int kShowHotkeyId = 0xB0B2;
 // app default). Used to re-apply capture exclusion when re-showing a window.
 bool g_hide_from_capture = true;
 
+// Reliably bring a window to the foreground in one shot (Windows' foreground
+// lock otherwise makes a plain SetForegroundWindow no-op, so "show" needed a
+// second press). Attaching to the current foreground thread grants the right.
+void ForceForeground(HWND hwnd) {
+  HWND fg = GetForegroundWindow();
+  DWORD fgTid = fg ? GetWindowThreadProcessId(fg, nullptr) : 0;
+  DWORD myTid = GetCurrentThreadId();
+  bool attached = false;
+  if (fgTid != 0 && fgTid != myTid) {
+    attached = AttachThreadInput(myTid, fgTid, TRUE) != 0;
+  }
+  BringWindowToTop(hwnd);
+  SetForegroundWindow(hwnd);
+  SetFocus(hwnd);
+  if (attached) {
+    AttachThreadInput(myTid, fgTid, FALSE);
+  }
+}
+
 // Show (lparam != 0) or hide (lparam == 0) every top-level app window of this
 // process. EnumWindows also enumerates hidden windows, so "show" can un-hide
 // windows previously hidden by the hide hotkey.
@@ -129,7 +148,9 @@ BOOL CALLBACK ApplyShowStateProc(HWND hwnd, LPARAM show) {
     if (g_hide_from_capture) {
       SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
     }
-    SetForegroundWindow(hwnd);
+    if (IsWindowVisible(hwnd)) {
+      ForceForeground(hwnd);  // reliably focus in one press
+    }
   } else {
     SetWindowRgn(hwnd, CreateRectRgn(0, 0, 0, 0), TRUE);  // clip to nothing
   }
