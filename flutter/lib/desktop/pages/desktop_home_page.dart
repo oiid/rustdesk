@@ -696,8 +696,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   void initState() {
     super.initState();
     if (isWindows) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        applyHideFromCapture(isHideFromCaptureOn());
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        // Force hide-from-capture ON at every startup (persisted), so a stale
+        // "off" in a distributed copy's config can never leave it exposed. The
+        // Settings toggle still works for the running session.
+        await forceHideFromCaptureOnAtStartup();
         applyHotkeys();
       });
       // Re-apply after the window's show/opacity sequence settles, so the main

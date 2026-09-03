@@ -2932,6 +2932,18 @@ Future<void> applyHideFromCapture(bool enable) async {
   }
 }
 
+/// Custom build: force hide-from-capture ON at startup and persist it, so a
+/// stale "off" saved in a distributed copy's per-PC config can never leave the
+/// app exposed. This also makes the Rust use_texture_render() see it as on, so
+/// the live remote view uses software rendering (which capture-exclusion can
+/// hide). The Settings toggle still turns it off for the running session; the
+/// next launch re-asserts ON. No-op off Windows.
+Future<void> forceHideFromCaptureOnAtStartup() async {
+  if (!isWindows) return;
+  await bind.mainSetLocalOption(key: kOptionHideFromScreenCapture, value: 'Y');
+  await applyHideFromCapture(true);
+}
+
 // Win32 global-hotkey modifier flags (see RegisterHotKey).
 const int kModAlt = 0x1;
 const int kModControl = 0x2;
