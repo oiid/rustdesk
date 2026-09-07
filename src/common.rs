@@ -122,6 +122,20 @@ impl Drop for SimpleCallOnReturn {
 }
 
 pub fn global_init() -> bool {
+    // Custom build: give this client its own internal identity so it can run
+    // side by side with the official RustDesk. This name drives the config
+    // folder (%APPDATA%\<name>) and the IPC pipe, so both are separate from
+    // official RustDesk's - the second instance no longer hits the "ipc is
+    // occupied" exit, and settings never overlap. The name the USER sees stays
+    // "RustDesk": main_get_app_name[_sync]() (what the whole UI reads) is
+    // hardcoded to "RustDesk", and the native window title/class are set
+    // independently in the runner. Runs for every process (main, Flutter
+    // engine, main.rs) before any config/IPC path is derived.
+    #[cfg(target_os = "windows")]
+    {
+        *hbb_common::config::APP_NAME.write().unwrap() = "RustDeskRemote".to_owned();
+    }
+
     #[cfg(all(target_os = "linux", feature = "drm"))]
     crate::platform::linux::dispatch_wayland_display_probe();
     #[cfg(target_os = "linux")]

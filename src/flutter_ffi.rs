@@ -1076,10 +1076,20 @@ pub fn main_get_socks() -> Vec<String> {
 }
 
 pub fn main_get_app_name() -> String {
+    // Custom build: the whole Flutter UI reads the app name through here, so the
+    // user always sees "RustDesk" even though the internal identity (config
+    // folder / IPC pipe, set in common::global_init) differs so we can run
+    // alongside official RustDesk. Windows only; elsewhere keep the real name.
+    #[cfg(target_os = "windows")]
+    return "RustDesk".to_owned();
+    #[cfg(not(target_os = "windows"))]
     get_app_name()
 }
 
 pub fn main_get_app_name_sync() -> SyncReturn<String> {
+    #[cfg(target_os = "windows")]
+    return SyncReturn("RustDesk".to_owned());
+    #[cfg(not(target_os = "windows"))]
     SyncReturn(get_app_name())
 }
 

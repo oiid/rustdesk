@@ -80,14 +80,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
         command_line_arguments.end());
   }
 
+  // Custom build: keep the visible window title "RustDesk". We intentionally do
+  // NOT read the internal app name from the library here - it is a distinct
+  // value ("RustDeskRemote", set in common::global_init) used only for the
+  // config folder / IPC pipe so this client can run beside official RustDesk.
+  // The distinct window class (kWindowClassName) is what keeps the two apps'
+  // single-instance checks from finding each other, so the title can stay the
+  // same.
   std::wstring app_name = L"RustDesk";
-  FUNC_RUSTDESK_GET_APP_NAME get_rustdesk_app_name = (FUNC_RUSTDESK_GET_APP_NAME)GetProcAddress(hInstance, "get_rustdesk_app_name");
-  if (get_rustdesk_app_name) {
-    wchar_t app_name_buffer[512] = {0};
-    if (get_rustdesk_app_name(app_name_buffer, 512) == 0) {
-      app_name = std::wstring(app_name_buffer);
-    }
-  }
 
   // Uri links dispatch
   HWND hwnd = ::FindWindowW(getWindowClassName(), app_name.c_str());

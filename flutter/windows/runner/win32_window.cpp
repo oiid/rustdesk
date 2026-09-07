@@ -11,7 +11,13 @@
 
 namespace {
 
-constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+// Custom build: a distinct window class (official RustDesk uses the default
+// "FLUTTER_RUNNER_WIN32_WINDOW"). The single-instance guard in main.cpp matches
+// on class + title, so a distinct class lets this client and official RustDesk
+// each start without one re-focusing the other - while both still show the
+// "RustDesk" title. Our own second launch still shares this class, so this
+// client stays single-instance against itself.
+constexpr const wchar_t kWindowClassName[] = L"RUSTDESK_REMOTE_WIN32_WINDOW";
 
 // The number of Win32Window objects that currently exist.
 static int g_active_window_count = 0;
