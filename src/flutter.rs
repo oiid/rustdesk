@@ -1300,6 +1300,9 @@ pub fn session_add(
         bail!("same session id is found");
     }
 
+    // Custom build (Windows/stealth): don't remember the last connected id/ip,
+    // so the connection box is blank on the next launch.
+    #[cfg(not(target_os = "windows"))]
     LocalConfig::set_remote_id(&id);
 
     let mut preset_password = password.clone();

@@ -1448,6 +1448,14 @@ pub fn main_load_recent_peers() {
         );
     };
 
+    // Custom build (Windows/stealth): never expose connection history - always
+    // report an empty recent-peers list, so the main page stays blank even if
+    // any peer files exist from before.
+    if cfg!(target_os = "windows") {
+        push_to_flutter("".to_owned(), None);
+        return;
+    }
+
     if !config::APP_DIR.read().unwrap().is_empty() {
         let vec_id_modified_time_path = PeerConfig::get_vec_id_modified_time_path(&None);
         if vec_id_modified_time_path.is_empty() {
@@ -1751,6 +1759,10 @@ pub fn get_voice_call_input_device(_is_cm: bool) -> String {
 }
 
 pub fn main_get_last_remote_id() -> String {
+    // Custom build (Windows/stealth): never pre-fill the connection box.
+    if cfg!(target_os = "windows") {
+        return "".to_owned();
+    }
     LocalConfig::get_remote_id()
 }
 

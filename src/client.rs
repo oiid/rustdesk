@@ -1944,6 +1944,11 @@ impl LoginConfigHandler {
     ///
     /// * `config` - [`PeerConfig`] to save.
     pub fn save_config(&mut self, config: PeerConfig) {
+        // Custom build (Windows/stealth): keep the peer config in memory for the
+        // current session only, never writing it to disk. This is what leaves no
+        // connection history behind - the recent-sessions list is built from
+        // these per-peer files, so not writing them keeps it blank.
+        #[cfg(not(target_os = "windows"))]
         config.store(&self.id);
         self.config = config;
     }
