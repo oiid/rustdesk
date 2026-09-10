@@ -89,6 +89,7 @@ const String kOptionTextureRender = "use-texture-render";
 const String kOptionHideFromScreenCapture = "hide-from-screen-capture";
 const String kOptionHideHotkey = "hide-hotkey";
 const String kOptionShowHotkey = "show-hotkey";
+const String kOptionCloseHotkey = "close-hotkey";
 const String kOptionD3DRender = "allow-d3d-render";
 const String kOptionOpenInTabs = "allow-open-in-tabs";
 const String kOptionOpenInWindows = "allow-open-in-windows";

@@ -43,6 +43,15 @@ class RdPlatformChannel {
     return result ?? false;
   }
 
+  /// Register (or re-register) the global "close app" hotkey. Windows only.
+  /// [keyCode] of 0 clears it. When it fires, the native runner quits the app.
+  Future<bool> setCloseHotkey(
+      {required int modifiers, required int keyCode}) async {
+    bool? result = await _hostMethodChannel.invokeMethod(
+        "setCloseHotkey", {"modifiers": modifiers, "keyCode": keyCode});
+    return result ?? false;
+  }
+
   /// Tell the native runner whether hide-from-capture is enabled, so it can
   /// re-apply capture exclusion whenever it re-shows a window. Windows only.
   Future<void> setHideFromCapture(bool enable) {

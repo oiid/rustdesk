@@ -563,6 +563,12 @@ class _GeneralState extends State<_General> {
             get: getShowHotkey,
             set: updateShowHotkey,
           ),
+        if (isWindows)
+          _HotkeyConfig(
+            label: 'Close app hotkey',
+            get: getCloseHotkey,
+            set: updateCloseHotkey,
+          ),
       ],
       if (!isWeb && !bind.isCustomClient())
         _OptionCheckBox(

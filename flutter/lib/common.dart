@@ -2971,6 +2971,13 @@ List<int> getHideHotkey() => _getHotkey(kOptionHideHotkey, [kModWin, 0xC0]);
 /// The "show window(s)" hotkey. Defaults to Win+\ (0xDC).
 List<int> getShowHotkey() => _getHotkey(kOptionShowHotkey, [kModWin, 0xDC]);
 
+/// The "close app" hotkey. Defaults to Ctrl+Shift+Alt+C (0x43). This quits the
+/// whole app. The three-modifier combo is deliberate: the client never forwards
+/// a Ctrl+Shift+Alt combo to the peer, so it fires even while controlling the
+/// VPS, and it is not something you type by accident.
+List<int> getCloseHotkey() =>
+    _getHotkey(kOptionCloseHotkey, [kModControl | kModShift | kModAlt, 0x43]);
+
 /// Persist and (on Windows) register the hide hotkey immediately.
 Future<void> updateHideHotkey(int modifiers, int keyCode) async {
   await bind.mainSetLocalOption(
@@ -2991,16 +2998,29 @@ Future<void> updateShowHotkey(int modifiers, int keyCode) async {
   }
 }
 
+/// Persist and (on Windows) register the close-app hotkey immediately.
+Future<void> updateCloseHotkey(int modifiers, int keyCode) async {
+  await bind.mainSetLocalOption(
+      key: kOptionCloseHotkey, value: '$modifiers,$keyCode');
+  if (isWindows) {
+    await RdPlatformChannel.instance
+        .setCloseHotkey(modifiers: modifiers, keyCode: keyCode);
+  }
+}
+
 /// Register both stored hotkeys with the native runner (call at startup from
 /// the main window).
 Future<void> applyHotkeys() async {
   if (!isWindows) return;
   final hide = getHideHotkey();
   final show = getShowHotkey();
+  final close = getCloseHotkey();
   await RdPlatformChannel.instance
       .setHideHotkey(modifiers: hide[0], keyCode: hide[1]);
   await RdPlatformChannel.instance
       .setShowHotkey(modifiers: show[0], keyCode: show[1]);
+  await RdPlatformChannel.instance
+      .setCloseHotkey(modifiers: close[0], keyCode: close[1]);
 }
 
 /// Show or hide every window of this process (Windows only). Used by the

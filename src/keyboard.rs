@@ -619,19 +619,26 @@ fn start_grab_loop() {
                 return Some(event);
             }
 
-            // Custom build: never forward Windows-key combos to the peer. Remote
-            // apps don't use the Win key, and passing them to the OS lets a
-            // Win-based app hotkey (e.g. Win+`) fire hide/show. Normal typing
-            // (no Win held) is unaffected, and there is no per-key config lookup.
+            // Custom build: don't forward the app's global hotkey combos to the
+            // peer - pass them to the OS so RegisterHotKey fires them even while
+            // controlling the VPS. Two cases, both decided by live modifier state
+            // (GetAsyncKeyState) with no per-key config lookup, so the hook stays
+            // fast and normal typing is untouched:
+            //   * any Windows-key combo (the hide/show hotkeys, e.g. Win+`);
+            //   * any Ctrl+Shift+Alt combo (the close hotkey, default
+            //     Ctrl+Shift+Alt+C) - a 3-modifier chord is never typed as text.
             #[cfg(target_os = "windows")]
             {
-                use winapi::um::winuser::{GetAsyncKeyState, VK_LWIN, VK_RWIN};
-                let win_down =
+                use winapi::um::winuser::{
+                    GetAsyncKeyState, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
+                };
+                let down =
                     |k: i32| (unsafe { GetAsyncKeyState(k) } as u16 & 0x8000u16) != 0;
                 if key == Key::MetaLeft
                     || key == Key::MetaRight
-                    || win_down(VK_LWIN)
-                    || win_down(VK_RWIN)
+                    || down(VK_LWIN)
+                    || down(VK_RWIN)
+                    || (down(VK_CONTROL) && down(VK_SHIFT) && down(VK_MENU))
                 {
                     return Some(event);
                 }

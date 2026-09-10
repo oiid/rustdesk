@@ -82,9 +82,11 @@ void ForceChildRefresh(HWND child) {
 // A single global hotkey (configured from the Dart settings page) toggles the
 // visibility of every top-level window of this process, so the whole app can be
 // summoned / dismissed instantly.
-// Two independent hotkeys: one hides all app windows, one shows them.
+// Independent hotkeys: one hides all app windows, one shows them, one quits the
+// whole app.
 constexpr int kHideHotkeyId = 0xB0B1;
 constexpr int kShowHotkeyId = 0xB0B2;
+constexpr int kCloseHotkeyId = 0xB0B3;
 
 #ifndef WDA_EXCLUDEFROMCAPTURE
 #define WDA_EXCLUDEFROMCAPTURE 0x00000011
@@ -258,7 +260,8 @@ bool FlutterWindow::OnCreate() {
 
         result->Success(succeeded);
       } else if (call.method_name() == "setHideHotkey" ||
-                 call.method_name() == "setShowHotkey") {
+                 call.method_name() == "setShowHotkey" ||
+                 call.method_name() == "setCloseHotkey") {
         int mods = 0, vk = 0;
         auto arguments = call.arguments();
         if (std::holds_alternative<flutter::EncodableMap>(*arguments)) {
@@ -272,8 +275,12 @@ bool FlutterWindow::OnCreate() {
             vk = std::get<int>(kIt->second);
           }
         }
-        int id = (call.method_name() == "setHideHotkey") ? kHideHotkeyId
-                                                         : kShowHotkeyId;
+        int id = kHideHotkeyId;
+        if (call.method_name() == "setShowHotkey") {
+          id = kShowHotkeyId;
+        } else if (call.method_name() == "setCloseHotkey") {
+          id = kCloseHotkeyId;
+        }
         UnregisterHotKey(this->GetHandle(), id);
         bool ok = true;
         if (vk != 0) {
@@ -375,6 +382,13 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       }
       if (static_cast<int>(wparam) == kShowHotkeyId) {
         SetAllProcessWindowsShown(true);
+        return 0;
+      }
+      if (static_cast<int>(wparam) == kCloseHotkeyId) {
+        // Quit the whole app. Every window (main + remote sub-windows) and the
+        // background threads live in this one process, so ExitProcess tears the
+        // entire app down at once - the "close app" panic key.
+        ExitProcess(0);
         return 0;
       }
       break;
