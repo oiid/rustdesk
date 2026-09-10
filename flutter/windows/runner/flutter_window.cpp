@@ -108,7 +108,23 @@ void ForceForeground(HWND hwnd) {
   }
   BringWindowToTop(hwnd);
   SetForegroundWindow(hwnd);
-  SetFocus(hwnd);
+  // Give keyboard focus to the Flutter child VIEW, not the top-level frame.
+  // Focusing the frame (the old SetFocus(hwnd)) is exactly what left text fields
+  // - the connect ID/IP box and the remote password box - unable to type after
+  // a hide/show cycle: keystrokes went to the frame instead of the engine. The
+  // Flutter view is the frame's child window; focus it directly, attaching to
+  // its thread first when it belongs to a sub-window on another thread.
+  HWND child = GetWindow(hwnd, GW_CHILD);
+  HWND focus_target = child ? child : hwnd;
+  DWORD targetTid = GetWindowThreadProcessId(hwnd, nullptr);
+  bool attached2 = false;
+  if (targetTid != myTid && targetTid != fgTid) {
+    attached2 = AttachThreadInput(myTid, targetTid, TRUE) != 0;
+  }
+  SetFocus(focus_target);
+  if (attached2) {
+    AttachThreadInput(myTid, targetTid, FALSE);
+  }
   if (attached) {
     AttachThreadInput(myTid, fgTid, FALSE);
   }
