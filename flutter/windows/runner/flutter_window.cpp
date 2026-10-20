@@ -13,6 +13,7 @@
 #include <flutter/standard_method_codec.h>
 
 #include <windows.h>
+#include <tlhelp32.h>
 
 #include <optional>
 #include <memory>
@@ -213,6 +214,48 @@ void SetAllProcessWindowsShown(bool show) {
   }
 }
 
+// Terminate every running process started from this same executable (matched by
+// full image path, so other apps - e.g. official RustDesk at a different path -
+// are never touched). A remote session opens its window in a SEPARATE process
+// (desktop_multi_window re-launches this exe), so the close hotkey's
+// ExitProcess only killed the main process and left the session process behind.
+// This kills the whole app group; the caller still ExitProcess()es itself.
+void TerminateAppProcessGroup() {
+  wchar_t self_path[MAX_PATH];
+  DWORD self_len = GetModuleFileNameW(nullptr, self_path, MAX_PATH);
+  if (self_len == 0 || self_len >= MAX_PATH) {
+    return;
+  }
+  DWORD my_pid = GetCurrentProcessId();
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snap == INVALID_HANDLE_VALUE) {
+    return;
+  }
+  PROCESSENTRY32W entry;
+  entry.dwSize = sizeof(entry);
+  if (Process32FirstW(snap, &entry)) {
+    do {
+      if (entry.th32ProcessID == my_pid) {
+        continue;  // kill ourselves last, via ExitProcess in the caller
+      }
+      HANDLE proc =
+          OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
+                      FALSE, entry.th32ProcessID);
+      if (!proc) {
+        continue;
+      }
+      wchar_t path[MAX_PATH];
+      DWORD len = MAX_PATH;
+      if (QueryFullProcessImageNameW(proc, 0, path, &len) &&
+          lstrcmpiW(path, self_path) == 0) {
+        TerminateProcess(proc, 0);
+      }
+      CloseHandle(proc);
+    } while (Process32NextW(snap, &entry));
+  }
+  CloseHandle(snap);
+}
+
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -403,9 +446,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
         return 0;
       }
       if (static_cast<int>(wparam) == kCloseHotkeyId) {
-        // Quit the whole app. Every window (main + remote sub-windows) and the
-        // background threads live in this one process, so ExitProcess tears the
-        // entire app down at once - the "close app" panic key.
+        // Quit the whole app - the "close app" panic key. A remote session runs
+        // in its own process (desktop_multi_window re-launches this exe), so
+        // first terminate every sibling process of this same executable, then
+        // ExitProcess ourselves. ExitProcess alone left the session process
+        // running after a connection had been opened.
+        TerminateAppProcessGroup();
         ExitProcess(0);
         return 0;
       }
