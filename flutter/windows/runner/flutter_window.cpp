@@ -214,46 +214,52 @@ void SetAllProcessWindowsShown(bool show) {
   }
 }
 
-// Terminate every running process started from this same executable (matched by
-// full image path, so other apps - e.g. official RustDesk at a different path -
-// are never touched). A remote session opens its window in a SEPARATE process
-// (desktop_multi_window re-launches this exe), so the close hotkey's
-// ExitProcess only killed the main process and left the session process behind.
-// This kills the whole app group; the caller still ExitProcess()es itself.
-void TerminateAppProcessGroup() {
+// Hard-kill the whole app - the "close app" panic key. This is deliberately a
+// TerminateProcess ("End task") on every process, NOT a graceful ExitProcess:
+// a remote session opens its window in a SEPARATE process (desktop_multi_window
+// re-launches this exe), and once a connection is open the librustdesk tokio
+// threads deadlock the loader lock during DLL_PROCESS_DETACH, so ExitProcess
+// hung the app ("not responding" / stuck process) instead of quitting. Every
+// sibling process of this same executable (matched by full image path, so
+// unrelated apps - e.g. official RustDesk at a different path - are untouched)
+// is terminated first, then we terminate ourselves. TerminateProcess skips all
+// DLL detach / atexit cleanup, exactly like Task Manager's End Process, so it
+// cannot hang. This never returns.
+void HardKillAppProcessGroup() {
   wchar_t self_path[MAX_PATH];
   DWORD self_len = GetModuleFileNameW(nullptr, self_path, MAX_PATH);
-  if (self_len == 0 || self_len >= MAX_PATH) {
-    return;
-  }
+  bool have_self_path = (self_len != 0 && self_len < MAX_PATH);
   DWORD my_pid = GetCurrentProcessId();
   HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if (snap == INVALID_HANDLE_VALUE) {
-    return;
+  if (snap != INVALID_HANDLE_VALUE) {
+    PROCESSENTRY32W entry;
+    entry.dwSize = sizeof(entry);
+    if (Process32FirstW(snap, &entry)) {
+      do {
+        if (entry.th32ProcessID == my_pid || entry.th32ProcessID == 0) {
+          continue;  // kill ourselves last, below; never touch the System idle
+        }
+        HANDLE proc =
+            OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
+                        FALSE, entry.th32ProcessID);
+        if (!proc) {
+          continue;
+        }
+        wchar_t path[MAX_PATH];
+        DWORD len = MAX_PATH;
+        bool match = have_self_path &&
+                     QueryFullProcessImageNameW(proc, 0, path, &len) &&
+                     lstrcmpiW(path, self_path) == 0;
+        if (match) {
+          TerminateProcess(proc, 0);
+        }
+        CloseHandle(proc);
+      } while (Process32NextW(snap, &entry));
+    }
+    CloseHandle(snap);
   }
-  PROCESSENTRY32W entry;
-  entry.dwSize = sizeof(entry);
-  if (Process32FirstW(snap, &entry)) {
-    do {
-      if (entry.th32ProcessID == my_pid) {
-        continue;  // kill ourselves last, via ExitProcess in the caller
-      }
-      HANDLE proc =
-          OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
-                      FALSE, entry.th32ProcessID);
-      if (!proc) {
-        continue;
-      }
-      wchar_t path[MAX_PATH];
-      DWORD len = MAX_PATH;
-      if (QueryFullProcessImageNameW(proc, 0, path, &len) &&
-          lstrcmpiW(path, self_path) == 0) {
-        TerminateProcess(proc, 0);
-      }
-      CloseHandle(proc);
-    } while (Process32NextW(snap, &entry));
-  }
-  CloseHandle(snap);
+  // Finally end ourselves the hard way too - no ExitProcess, no cleanup.
+  TerminateProcess(GetCurrentProcess(), 0);
 }
 
 }  // namespace
@@ -446,13 +452,10 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
         return 0;
       }
       if (static_cast<int>(wparam) == kCloseHotkeyId) {
-        // Quit the whole app - the "close app" panic key. A remote session runs
-        // in its own process (desktop_multi_window re-launches this exe), so
-        // first terminate every sibling process of this same executable, then
-        // ExitProcess ourselves. ExitProcess alone left the session process
-        // running after a connection had been opened.
-        TerminateAppProcessGroup();
-        ExitProcess(0);
+        // Hard-kill the whole app group (main + remote-session processes). Uses
+        // TerminateProcess, not ExitProcess, because the latter hung once a
+        // connection was open. Does not return.
+        HardKillAppProcessGroup();
         return 0;
       }
       break;
