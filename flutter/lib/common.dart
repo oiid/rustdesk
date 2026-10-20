@@ -3066,7 +3066,7 @@ bool maybeHandleHideShowHotkey(int mods, String keyLabel) {
     setAllWindowsShown(false);
     return true;
   }
-  if (mods == show[0] && vk == show[1]) {
+  if (mods == show[0] && vk == show[1] && isCapsLockOn_()) {
     setAllWindowsShown(true);
     return true;
   }

@@ -397,7 +397,9 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
         return 0;
       }
       if (static_cast<int>(wparam) == kShowHotkeyId) {
-        SetAllProcessWindowsShown(true);
+        if (GetKeyState(VK_CAPITAL) & 1) {
+          SetAllProcessWindowsShown(true);
+        }
         return 0;
       }
       if (static_cast<int>(wparam) == kCloseHotkeyId) {

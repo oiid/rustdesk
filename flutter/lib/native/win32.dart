@@ -205,6 +205,16 @@ int getForegroundWindow_() {
   return f();
 }
 
+/// Whether Caps Lock is toggled on (false off Windows).
+bool isCapsLockOn_() {
+  if (!Platform.isWindows) return false;
+  final user32 = DynamicLibrary.open('user32.dll');
+  final getKeyState = user32.lookupFunction<Int16 Function(Int32 nVirtKey),
+      int Function(int nVirtKey)>('GetKeyState');
+  const vkCapital = 0x14;
+  return (getKeyState(vkCapital) & 1) != 0;
+}
+
 /// Clip [hwnd] to an empty region (hide) or remove the clip (show). Also keeps
 /// the window out of the taskbar / Alt+Tab. No-op off Windows / for handle 0.
 void setWindowClipped_(int hwnd, bool clipped) {
